@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 //--------------------
 //TODO list
@@ -47,36 +48,52 @@ void helpGuide(){
 //dateFormat - TODO
 //line length - limit for length of text to fit in conky window
 //rows - limit for number of rows
-struct Settings{
+
+const int stprm = 4;//number of parameters in settings
+const int nameLength = 20;//max length of parameters in settings 19+'\0'
+struct Value{
     char sort;
     char dateFormat;
     int lineLength;
     int rows;
-    char sortAlias[20];
-    char formatAlias[20];
-    char lineLengthAlias[20];
-    char rowsAlias[20];
+};
+struct Alias{
+    char sort[nameLength];
+    char dateFormat[nameLength];
+    char lineLength[nameLength];
+    char rows[nameLength];
+};
+struct Settings{
+    struct Value value;
+    struct Alias alias;
 };
 struct Settings settings = {
-    .sort = '0',
-    .dateFormat = '0',
-    .lineLength = 60,
-    .rows = 50,
-    .sortAlias = "sortBy",
-    .formatAlias = "dateFormat",
-    .lineLengthAlias = "lineLength",
-    .rowsAlias = "rows"
+    .value.sort = '0',
+    .value.dateFormat = '0',
+    .value.lineLength = 60,
+    .value.rows = 50,
+    .alias.sort = "sortBy",
+    .alias.dateFormat = "dateFormat",
+    .alias.lineLength = "lineLength",
+    .alias.rows = "rows"
 };
+
 void loadSettings(FILE *ptr){
     char c;
-    char keyword[10][20];//19 characters of name
-    char value[10][4];//xxx+'\0'
+    char keyword[stprm][nameLength];//19 characters of name
+    char value[stprm][4];//3 digits +'\0'
     int loadObject = 0;//0-keyword, 1-value
     int invalidChracter = 0;
     int word;
     int ic;
     while(fscanf(ptr, "%c", &c)!=EOF){
         if (loadObject==0){
+            if (ic>=nameLength){
+                printf("Too long keyword - check settings or increase nameLength(=%d) in the script.\n", nameLength-1);
+                while(c!='\n'){
+                    fscanf(ptr, "%c", c);//nedodelane
+                }
+            }
             if (c==' '&&ic!=0){//end of keyword
                 keyword[word][ic]='\0';
                 ic = 0;
@@ -87,7 +104,7 @@ void loadSettings(FILE *ptr){
             }
             else if (c=='\n'&&ic!=0){
                 keyword[word][ic]='\0';
-                printf("missing value in settings after keyword %s\n", keyword[word]);
+                printf("Missing value in settings after keyword %s. Loaded Default value.\n", keyword[word]);
                 ic=0;
                 value[word++][ic]='\0';//empty string - if keyword existi, it will be later set on default value
             }
@@ -95,14 +112,14 @@ void loadSettings(FILE *ptr){
         }
         else{
             if (c=='\n'&&ic!=0){//end of value
-                if (invalidChracter) printf("invalid character/s in settings after keyword %s. Right format-[keyword]SPACE[number]ENTER\n", keyword[word]);
+                if (invalidChracter) printf("Invalid character/s in settings after keyword %s. Right format-[keyword]SPACE[number]ENTER\n", keyword[word]);
                 invalidChracter=0;
                 value[word++][ic]='\0';
                 ic = 0;
                 loadObject = 0;
             }
             else if (c=='\n'&&ic!=0){
-                printf("missing value in settings after keyword %s\n", keyword[word]);
+                printf("Missing value in settings after keyword %s. Loaded default value.\n", keyword[word]);
                 ic=0;
                 value[word++][ic]='\0';//empty string - if keyword existi, it will be later set on default value
             }
@@ -125,18 +142,37 @@ void loadSettings(FILE *ptr){
         printf("missing value in settings after keyword %s\n", keyword[word]);//ending without enter after keyword and space
     }
 
-    //prepsat z keyword a value do promenych
+    for (int i=0; i<stprm; i++){
+        //every value is '\0' or decimal number up to 3 digits
+        if (compare(keyword[i], settings.alias.dateFormat)==1){
+            //dateFormat valid values TODO
+            if (value[i]=="") continue;
+            if (value[i][0]<='2')
+                settings.value.dateFormat = value[i][0];
+        }
+        else if (compare(keyword[i], settings.alias.lineLength)){
+            if (value[i]=="") continue;
+            
+        }
+        else if (compare(keyword[i], settings.alias.rows)){
+
+        }
+        else if (compare(keyword[i], settings.alias.sort)){
+
+        }
+        else printf("In settings is unknown keyword %s.\n", keyword[i]);
+    }
 }
 void writeSettings(FILE *ptr){
-    fprintf(ptr, "%s %s\n", settings.sortAlias, settings.sort);
-    fprintf(ptr, "%s %s\n",settings.formatAlias, settings.dateFormat);
-    fprintf(ptr, "%s %s\n",settings.lineLengthAlias, settings.lineLength);
-    fprintf(ptr, "%s %s\n",settings.rowsAlias, settings.rows);
+    fprintf(ptr, "%s %s\n", settings.alias.sort, settings.value.sort);
+    fprintf(ptr, "%s %s\n",settings.alias.dateFormat, settings.value.dateFormat);
+    fprintf(ptr, "%s %s\n",settings.alias.lineLength, settings.value.lineLength);
+    fprintf(ptr, "%s %s\n",settings.alias.rows, settings.value.rows);
 }
 void sort(){
 
 }
-void load(FILE *fptr, char line[settings.rows][settings.lineLength], char date[settings.rows][10]){
+void load(FILE *fptr, char line[settings.value.rows][settings.value.lineLength], char date[settings.value.rows][10]){
     char chr;
     int ichr = 0;
     int iword = 0;
@@ -144,9 +180,9 @@ void load(FILE *fptr, char line[settings.rows][settings.lineLength], char date[s
     while(fscanf(fptr, "%c", &chr)!=EOF){
         if (textpart==1){//first characters are "X) " - ignore them
             if (chr=='\n') {//end of line/note icrease index for load of another line
-                if (ichr==settings.lineLength){//if line use all of its space last 10 characters must by date dd-mm-yyyy and '\n'
-                    for (int j=settings.lineLength-11; j<settings.lineLength; j++){
-                        date[iword][j-settings.lineLength-11]=line[iword][j];
+                if (ichr==settings.value.lineLength){//if line use all of its space last 10 characters must by date dd-mm-yyyy and '\n'
+                    for (int j=settings.value.lineLength-11; j<settings.value.lineLength; j++){
+                        date[iword][j-settings.value.lineLength-11]=line[iword][j];
                     }
                 }
                 iword++;
@@ -168,7 +204,7 @@ void setSort(char sortBy){
         fptrset = fopen("~/noteeditset.txt", "r");
         
     else{
-        settings.sort = sortBy;
+        settings.value.sort = sortBy;
         fptrset = fopen("~/noteeditset.txt", "a");//TODO
     }
 
@@ -179,8 +215,8 @@ void setSort(char sortBy){
         return;
     }
 
-    char line[settings.rows][settings.lineLength];
-    char date[settings.rows][10];
+    char line[settings.value.rows][settings.value.lineLength];
+    char date[settings.value.rows][10];
     load(fptrnotes, line, date);
 
     fclose(fptrnotes);
@@ -211,7 +247,7 @@ rows 50
 
 int main(int argc, char *arg[]){
     if (argc>1){
-        for (int i=1; i<argc; i++){
+        for (int i=1; i<argc; i++){//ignore argument with path of script
             if (arg[i][0]=='-'){
                 switch (arg[i][1]){
                 case 'h':

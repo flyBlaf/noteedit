@@ -6,6 +6,9 @@
 //TODO list
 //--------------------
 /*
+predelat nacitani a kontrolu. Nacist oboji zvlast - zkontrolovat platnost a v pripade konfliktu nabidnou reseni
+nacitat idealne ve stejne funkci
+
 github
 date formates
 excec command in conky .conf
@@ -43,14 +46,25 @@ void helpGuide(){
     printf("For changes and new versions (if a new version ever comes) look for TODO-github.\n");
 }
 
-//default settings are overwritten form noteeditset.txt
+int errorQuestion(){
+    printf("Some data can be lost. Do you want to continue? [Y/n]");
+    int c;
+    scanf("%c\n",&c);
+    if (c=='Y') return 0;
+    else{
+        pritnf("Proccess canceled...\n");
+        return 1;
+    }
+}
+
+//default settings are overwritten from noteeditset.txt
 //sort - 0 - in order of writing, 1 - by date, 2 - alphabetical | default value 1
 //dateFormat - TODO
 //line length - limit for length of text to fit in conky window
 //rows - limit for number of rows
-
 const int stprm = 4;//number of parameters in settings
 const int nameLength = 20;//max length of parameters in settings 19+'\0'
+const int valueLen = 4;//max digits of values of prameters 3+'\0'
 struct Value{
     char sort;
     char dateFormat;
@@ -77,21 +91,45 @@ struct Settings settings = {
     .alias.lineLength = "lineLength",
     .alias.rows = "rows"
 };
+struct ProcessInformation{
+    int notesLines;
+    int longestLine;
+    short notesLoaded;
+};
+struct ProcessInformation procInfo = {
+    .notesLoaded = 0
+};
 
-void loadSettings(FILE *ptr){
+int loadSettings(FILE *ptr){
     char c;
     char keyword[stprm][nameLength];//19 characters of name
-    char value[stprm][4];//3 digits +'\0'
+    char value[stprm][valueLen];//3 digits +'\0'
     int loadObject = 0;//0-keyword, 1-value
     int invalidChracter = 0;
     int word;
     int ic;
     while(fscanf(ptr, "%c", &c)!=EOF){
-        if (loadObject==0){
-            if (ic>=nameLength){
-                printf("Too long keyword - check settings or increase nameLength(=%d) in the script.\n", nameLength-1);
-                while(c!='\n'){
-                    fscanf(ptr, "%c", c);//nedodelane
+        if (loadObject==0){//load keyword
+            if (ic>=nameLength-1){//20th character reserved for '\0'
+                printf("Too long keyword - check settings file or increase nameLength(=%d) in the script.\n", nameLength-1);
+                if (errorQuestion()==1) return 1;
+
+                int status=0;
+                while(c!='\n'&&status!=EOF&&c!=' '){//read and discard all other characters on line
+                    status= fscanf(ptr, "%c", &c);
+                }
+                if (status==EOF) break;
+                if (c=='\n'){//too long keyword ending by \n
+                    keyword[word][ic]='\0';
+                    printf("Missing value in settings after keyword %s. Can be repaced by default value.\n", keyword[word]);
+                    if (errorQuestion()==1) return 1;
+                    ic=0;
+                    value[word++][ic]='\0';//empty string - if keyword existi, it will be later set on default value
+                }
+                else{
+                    keyword[word][ic]='\0';
+                    ic=0;
+                    loadObject=1;
                 }
             }
             if (c==' '&&ic!=0){//end of keyword
@@ -104,22 +142,38 @@ void loadSettings(FILE *ptr){
             }
             else if (c=='\n'&&ic!=0){
                 keyword[word][ic]='\0';
-                printf("Missing value in settings after keyword %s. Loaded Default value.\n", keyword[word]);
+                printf("Missing value in settings after keyword %s. Can be repaced by default value.\n", keyword[word]);
+                if (errorQuestion()==1) return 1;
                 ic=0;
                 value[word++][ic]='\0';//empty string - if keyword existi, it will be later set on default value
             }
             //else the char is ' ' before some word or '\n' on the beginning of line and it is ignored
         }
         else{
+            if (ic>=valueLen-1){//4th character reserved for '\0'
+                printf("Too long value - check settings file or increase valuenLen(=%d) in the script.\n", valueLen-1);
+                if (errorQuestion()==1) return 1;
+                int status=0;
+                while(c!='\n'&&status!=EOF){
+                    status= fscanf(ptr, "%c", &c);
+                }
+                if (status==EOF) break;
+                value[word++][ic]='\0';
+                ic=0;
+            }
             if (c=='\n'&&ic!=0){//end of value
-                if (invalidChracter) printf("Invalid character/s in settings after keyword %s. Right format-[keyword]SPACE[number]ENTER\n", keyword[word]);
+                if (invalidChracter) {
+                    printf("Invalid character/s in settings after keyword %s. Right format-[keyword]SPACE[number]ENTER\n", keyword[word]);
+                    if (errorQuestion()==1) return 1;
+                }
                 invalidChracter=0;
                 value[word++][ic]='\0';
                 ic = 0;
                 loadObject = 0;
             }
             else if (c=='\n'&&ic!=0){
-                printf("Missing value in settings after keyword %s. Loaded default value.\n", keyword[word]);
+                printf("Missing value in settings after keyword %s. Can by replaced by default value.\n", keyword[word]);
+                if (errorQuestion()==1) return 1;
                 ic=0;
                 value[word++][ic]='\0';//empty string - if keyword existi, it will be later set on default value
             }
@@ -132,35 +186,64 @@ void loadSettings(FILE *ptr){
     if (ic != 0 && loadObject == 0){
         keyword[word][ic]='\0';
         value[word][0]='\0';
-        printf("missing value in settings after keyword %s\n", keyword[word]);//ending without enter after keyword
+        printf("Missing value in settings after keyword %s. It can be deleted.\n", keyword[word]);//ending without enter after keyword
+        if (errorQuestion()==1) return 1;
     }
     else if (ic !=0){
         value[word][ic]='\0';//ending after value without enter
     }
     else if (loadObject==1){
         value[word][0]='\0';
-        printf("missing value in settings after keyword %s\n", keyword[word]);//ending without enter after keyword and space
+        printf("Missing value in settings after keyword %s. It can be deleted.\n", keyword[word]);//ending without enter after keyword and space
+        if (errorQuestion()==1) return 1;
     }
 
     for (int i=0; i<stprm; i++){
-        //every value is '\0' or decimal number up to 3 digits
-        if (compare(keyword[i], settings.alias.dateFormat)==1){
+        //every value is already checked if it is 3 digits in string or \0
+        if (strcmp(keyword[i], settings.alias.dateFormat)==0){
             //dateFormat valid values TODO
-            if (value[i]=="") continue;
+            if (value[i]=="") continue;//in all cases for outputing unknown keyword even without value
             if (value[i][0]<='2')
                 settings.value.dateFormat = value[i][0];
         }
-        else if (compare(keyword[i], settings.alias.lineLength)){
+        else if (strcmp(keyword[i], settings.alias.lineLength)==0){
             if (value[i]=="") continue;
-            
+            int num = atoi(value);
+            //kontorola delky ulozenych stringu v notes
+            if (num<1){
+                printf("Length of line must be positive number. It will be set on default value.\n");
+                if (errorQuestion()==1) return 1;
+            }
+            else if (num<14){
+                printf("Warning! No space for dates.");//missing space
+                settings.value.lineLength = num;
+            }
+            else settings.value.lineLength = num;
         }
-        else if (compare(keyword[i], settings.alias.rows)){
-
+        else if (strcmp(keyword[i], settings.alias.rows)==0){
+            if (value[i]=="") continue;
+            int num = atoi(value);
+            //kontorola poctu radku v notes
+            if (num<1){
+                printf("Number of lines must be positive number. It will be set on default value.\n");
+                if (errorQuestion()==1) return 1;
+            }
+            else settings.value.rows = num;
         }
-        else if (compare(keyword[i], settings.alias.sort)){
-
+        else if (strcmp(keyword[i], settings.alias.sort)==0){
+            if (value[i]=="") continue;
+            if (value[i][0]=='0'||value[i][0]=='1'||value[i][0]=='2'){
+                settings.value.sort=value[i][0];
+            }
+            else{
+                printf("In settings is invalid value after keyword %s. It will be set on default value.s\n", keyword[i]);
+                if (errorQuestion()==1) return 1;
+            }
         }
-        else printf("In settings is unknown keyword %s.\n", keyword[i]);
+        else{
+            printf("In settings is unknown keyword %s.\n", keyword[i]);
+            if (errorQuestion()==1) return 1;
+        }
     }
 }
 void writeSettings(FILE *ptr){
@@ -197,28 +280,29 @@ void load(FILE *fptr, char line[settings.value.rows][settings.value.lineLength],
 }
 
 
-void setSort(char sortBy){
+int setSort(char sortBy){
     FILE *fptrnotes;
     FILE *fptrset;
+    char line[settings.value.rows][settings.value.lineLength];
+    char date[settings.value.rows][10];
+
+    if (fopen("~/notes.txt", "r")!=NULL){
+        fptrnotes = fopen("~/notes.txt", "r");
+        load(fptrnotes, line, date);
+    }
+    else{
+        fclose(fopen("~/notes.txt", "a"));
+        procInfo.longestLine=0;
+        procInfo.notesLines=0;
+    }
+
     if (fopen("~/noteeditset.txt", "r")!=NULL)
         fptrset = fopen("~/noteeditset.txt", "r");
-        
+        //loadSettings - navazujici kod
     else{
         settings.value.sort = sortBy;
         fptrset = fopen("~/noteeditset.txt", "a");//TODO
     }
-
-    if (fopen("~/notes.txt", "r")!=NULL)
-        fptrnotes = fopen("~/notes.txt", "r");
-    else{
-        fclose(fopen("~/notes.txt", "a"));
-        return;
-    }
-
-    char line[settings.value.rows][settings.value.lineLength];
-    char date[settings.value.rows][10];
-    load(fptrnotes, line, date);
-
     fclose(fptrnotes);
 }
 void setEdit(int lenght, char line[]){

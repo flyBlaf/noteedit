@@ -2,6 +2,12 @@
 #include <string.h>
 #include <stdlib.h>
 
+//return value 
+/*
+0 - program runs succesfully
+1 - terminated by user
+*/
+
 //--------------------
 //TODO list
 //--------------------
@@ -94,10 +100,10 @@ struct Settings settings = {
 struct ProcessInformation{
     int notesLines;
     int longestLine;
-    short notesLoaded;
+    short loaded;//settings and notes
 };
 struct ProcessInformation procInfo = {
-    .notesLoaded = 0
+    .loaded = 0
 };
 
 int loadSettings(FILE *ptr){
@@ -255,7 +261,7 @@ void writeSettings(FILE *ptr){
 void sort(){
 
 }
-void load(FILE *fptr, char line[settings.value.rows][settings.value.lineLength], char date[settings.value.rows][10]){
+int loadSavedData(FILE *fptr, char line[settings.value.rows][settings.value.lineLength], char date[settings.value.rows][10]){
     char chr;
     int ichr = 0;
     int iword = 0;
@@ -278,9 +284,14 @@ void load(FILE *fptr, char line[settings.value.rows][settings.value.lineLength],
         ichr++;
     }
 }
+char* delete(char* lineNum){
+    
+}
+int write(int argc, char arg[], int i){
 
+}
 
-int setSort(char sortBy){
+void setSort(char sortBy){
     FILE *fptrnotes;
     FILE *fptrset;
     char line[settings.value.rows][settings.value.lineLength];
@@ -288,31 +299,22 @@ int setSort(char sortBy){
 
     if (fopen("~/notes.txt", "r")!=NULL){
         fptrnotes = fopen("~/notes.txt", "r");
-        load(fptrnotes, line, date);
     }
     else{
         fclose(fopen("~/notes.txt", "a"));
         procInfo.longestLine=0;
         procInfo.notesLines=0;
     }
-
     if (fopen("~/noteeditset.txt", "r")!=NULL)
         fptrset = fopen("~/noteeditset.txt", "r");
-        //loadSettings - navazujici kod
     else{
         settings.value.sort = sortBy;
         fptrset = fopen("~/noteeditset.txt", "a");//TODO
     }
     fclose(fptrnotes);
 }
-void setEdit(int lenght, char line[]){
+int setEdit(int lenght, char line[]){
 
-}
-void setWrite(char text[], char date[]){
-
-}
-void delete(int lenght, char line[]){
-    
 }
 
 //noteeditset.txt - saved settings
@@ -330,45 +332,31 @@ rows 50
 */
 
 int main(int argc, char *arg[]){
+    short argArrLen = 7;
+    short argMaxLen = 4;
+    char arguments[] = {
+        "-h", "-d", "-w",
+        "-e", "-sr", "-st",
+        "-v"
+    };
     if (argc>1){
         for (int i=1; i<argc; i++){//ignore argument with path of script
             if (arg[i][0]=='-'){
-                switch (arg[i][1]){
-                case 'h':
-                    helpGuide();
-                    break;
-                case 'w':
-                    if (argc>i+2){//exist next two arguments [text] [date]
-                        setWrite(arg[i+1], arg[i+2]);
-                    } else printf("missing argument after -%c\n", arg[i][1]);
-                    break;
-                case 'd':
-                    if (argc>i+1){//exists next argument
-                        delete(strlen(arg[i+1]), arg[i+1]);
-                        i++;
-                    } else printf("missing argument after -%c\n", arg[i][1]);
-                    break;
-                case 'e':
-                    if (argc>i+1){//exists next argument
-                        setEdit(strlen(arg[i+1]), arg[i+1]);
-                        i++;
-                    } else printf("missing argument after -%c\n", arg[i][1]);
-                    break;
-                case 's':
-                    if (argc>i+1){//exists next argument
-                        if (arg[i+1][0]=='0' || arg[i+1][0]=='1' || arg[i+1][0]=='2') {//call if next argument is valid (ignores continue of string)
-                            setSort(arg[i+1][0]);
-                            i++;
+                for (int j=0; j>argArrLen; j++){
+                    if (strcmp(arg[i], arguments[j])==0)
+                        switch (j){
+                        case 0: helpGuide();break;
+                        case 1: 
+                            if(argc>i+1 && arg[i+1][0]!='-')
+                                if(delete(arg[++i])==NULL) printf("Line %d does not exist\n", arg[i]);
+                            else printf("Missing argument after command %s.\n", arg[i]);
+                            break;
+                        case 2: i+=write(argc, arg, i); break;
+                        case 3: 
+                        case 4:
+                        case 5:
+                        case 6:
                         }
-                        else printf("invalid argument after -%c (0/1/2)\n", arg[i][0]);
-                    } else printf("missing argument after -%c\n", arg[i][1]);
-                    break;
-                case 'v':
-                    printf("noteEditor %s\n", fileInformation.version);
-                    break;
-                default:
-                    printf("invalid argument -%c (type -h for help)\n", arg[i][1]);
-                    break;
                 }
             }
             else printf("invalid argument %s (type -h for help)\n", arg[i]);

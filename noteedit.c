@@ -13,7 +13,9 @@
 //TODO list
 //--------------------
 /*
-    predelat nacitani a kontrolu. Nacist oboji zvlast - zkontrolovat platnost a v pripade konfliktu nabidnou reseni. Nacitat idealne ve stejne funkci.
+    loadSettings
+    loadData
+    delete
     github
     date formates
     excec command in conky .conf
@@ -98,7 +100,7 @@ struct Settings settings = {
     .value.dateFormat = '0',
     .value.limitedLength = '1',
     .value.limitedRows = '1',
-    .value.lineLength = 60,
+    .value.lineLength = 60,//allocation for arrays must be set +2 for '\n' and '\0'
     .value.rows = 50,
     .alias.sort = "sortBy",
     .alias.dateFormat = "dateFormat",
@@ -301,14 +303,23 @@ Delete line form text note
 */
 char* delete(char* lineNum){
     int a = atoi(lineNum);
-    //nacteni notes - radky
-    if (a<1 || a>procInfo.notesLines){
-        printf("Deleting: Invalid number of line.\n");
+    int tmp = loadData();
+    if (tmp!=0) return NULL;
+
+    if (a<1 || a>procInfo.countLinesNotes){
+        printf("Invalid number of line.\n");
         return NULL;
     }
     else {
         char* ptr = ;
     }
+}
+
+/*
+@return length of given number by logarithm+1
+*/
+int getRank(int number){
+    return (int)floor(log10(procInfo.countLinesNotes+1))+1;
 }
 
 /*
@@ -381,6 +392,12 @@ int cmpAlph(char * text){
     return -1; //append at the end
 }
 
+/*
+Insert line to text file in correct order
+@param text text of note
+@param date date connected to note
+@return 0 as succesful run
+*/
 int write(char * text, char * date){
     //0 = runs successfully
     int tmp = loadSettings();
@@ -395,7 +412,7 @@ int write(char * text, char * date){
     //limit of length of line is enabled
     if (settings.value.limitedLength){
         //length of prefix X)
-        int prefix = (int)floor(log10(procInfo.countLinesNotes+1))+3;//log(1)==0 -> +1  ; ") " -> +2
+        int prefix = getRank(procInfo.countLinesNotes+1)+2;//") " -> +2
         //only text
         if (date==NULL){
             //checking validity of length
@@ -419,14 +436,54 @@ int write(char * text, char * date){
 
     //FORMATING OF TEXT
     //-------------------------------------
+
+    int prefixB = getRank(procInfo.countLinesNotes+1);
     //append
     if (position==-1){
+        //number prefixis without ") "
+        int prefixA = getRank(procInfo.countLinesNotes);
+        //length of prefixi has changed by adding line
+        if (prefixA!=prefixB){
+            FILE * fptr = fopen(adrNotes, 'w');
+            for (int i = 0; i<procInfo.countLinesNotes; i++){
+                //spaces before number of line
+                int paddingStart = prefixB - getRank(i+1);
+                //padding of date to right
+                int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
+                fprintf(fptr, "% *d) % *s %d\n", paddingStart, i+1, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+                fclose(fptr);
+            }
+        }
         FILE *fptr = fopen(adrNotes, 'a');
-        fprintf(fptr, //hlidat odsazeni);
+        //padding of date to right
+        int padding = settings.value.lineLength - prefixB - strlen((*date))-3;//for spaces and ')'
+        fprintf(fptr, "%d) % *s %s\n", procInfo.countLinesNotes+1, padding, (*text), (*date));
+        fclose(fptr);
     }
+    //insert
     else{
-
+        FILE * fptr = fopen(adrNotes, 'w');
+        int skip = 0;
+        for (int i = 0; i<procInfo.countLinesNotes; i++){
+            //insert new line
+            if (i==position){
+                //numbering of lines must be increased by one
+                skip = 1;
+                //spaces before number of line
+                int paddingStart = prefixB - getRank(i+1);
+                //padding of date to right
+                int paddingDate = settings.value.lineLength - prefixB - strlen((*date))-3;//for spaces and ')'
+                fprintf(fptr, "% *d) % *s %d\n", paddingStart, i+1, paddingDate, (*text), (*date));
+            }
+            //spaces before number of line
+            int paddingStart = prefixB - getRank(i+1+skip);
+            //padding of date to right
+            int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
+            fprintf(fptr, "% *d) % *s %d\n", paddingStart, i+1+skip, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+        }
+        fclose(fptr);
     }
+    return 0;
 }
 
 //noteeditset.txt - saved settings

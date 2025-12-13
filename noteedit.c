@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 //return value 
 /*
@@ -12,13 +13,11 @@
 //TODO list
 //--------------------
 /*
-predelat nacitani a kontrolu. Nacist oboji zvlast - zkontrolovat platnost a v pripade konfliktu nabidnou reseni
-nacitat idealne ve stejne funkci
-
-github
-date formates
-excec command in conky .conf
-editation of line
+    predelat nacitani a kontrolu. Nacist oboji zvlast - zkontrolovat platnost a v pripade konfliktu nabidnou reseni. Nacitat idealne ve stejne funkci.
+    github
+    date formates
+    excec command in conky .conf
+    editation of line
 */
 
 struct FileInformation{
@@ -43,12 +42,13 @@ void helpGuide(){
     printf("   Written in %s\n", fileInformation.year);
     for (int i=0; i<30; i++){printf("-");}
     printf("\n\nThis program formating text to text file for right visualization by conky.\nTo .conf write {TODO-formating by conky}\nText is separate to two columns 1.subject 2.Date and default sort is by this date.\nLines without date are in the order of writing");
-    printf("\n\n   %-18s %s\n", "-h", "print (this) help quied");
-    printf("   %-18s %s\n", "-v", "print version");
-    printf("   %-18s %s\n", "-w [text] [date]", "write new line to file with optional parameter [date] in format dd-mm-yyyy, which writes date to second column");
-    printf("   %-18s %s\n", "-d [number]", "delete line [number]");
-    printf("   %-18s %s\n", "-e [number]", "TODO"/*"print editable text from line [number] and save it edited back on line"*/);
-    printf("   %-18s %s\n\n", "-s [number]", "sort lines 0 - in the order of writing, 1 - by date in second column, 2 - alphabetical");
+    printf("\n\n   %-21s %s\n", "-h", "print (this) help guied");
+    printf("   %-21s %s\n", "-v", "print version");
+    printf("   %-21s %s\n", "-w [text] [date]", "write new line to file with optional parameter [date] in format dd-mm-yyyy, which writes date to second column");
+    printf("   %-21s %s\n", "-d [number]", "delete line [number]");
+    printf("   %-21s %s\n", "-e [number]", "TODO"/*"print editable text from line [number] and save it edited back on line"*/);
+    printf("   %-21s %s\n", "-s [number]", "sort lines 0 - in the order of writing, 1 - by date in second column, 2 - alphabetical");
+    printf("   %-21s %s\n\n", "-o [option] [value]", "0 arguments - list options of noteedit, 1 argmunet - list value of option, 2 arguments - overwrite value of option.");
     printf("For changes and new versions (if a new version ever comes) look for TODO-github.\n");
 }
 
@@ -68,18 +68,24 @@ int errorQuestion(){
 //dateFormat - TODO
 //line length - limit for length of text to fit in conky window
 //rows - limit for number of rows
-const int stprm = 4;//number of parameters in settings
+const int stprm = 6;//number of parameters in settings
 const int nameLength = 20;//max length of parameters in settings 19+'\0'
 const int valueLen = 4;//max digits of values of prameters 3+'\0'
+const char adrNotes[] = "~/noteeditnt.txt";
+const char adrSet[] = "~/noteeditst.txt";
 struct Value{
     char sort;
     char dateFormat;
+    char limitedLength;
+    char limitedRows;
     int lineLength;
     int rows;
 };
 struct Alias{
     char sort[nameLength];
     char dateFormat[nameLength];
+    char limitedLength[nameLength];
+    char limitedRows[nameLength];
     char lineLength[nameLength];
     char rows[nameLength];
 };
@@ -88,23 +94,27 @@ struct Settings{
     struct Alias alias;
 };
 struct Settings settings = {
-    .value.sort = '0',
+    .value.sort = '1',
     .value.dateFormat = '0',
+    .value.limitedLength = '1',
+    .value.limitedRows = '1',
     .value.lineLength = 60,
     .value.rows = 50,
     .alias.sort = "sortBy",
     .alias.dateFormat = "dateFormat",
+    .alias.limitedLength = "LengthLimitation",
+    .alias.limitedRows = "rowLimitation",
     .alias.lineLength = "lineLength",
     .alias.rows = "rows"
 };
 struct ProcessInformation{
-    int notesLines;
+    int countLinesNotes;
     int longestLine;
-    short loaded;//settings and notes
+    int datesLen;
+    char ** text;
+    char ** dates;
 };
-struct ProcessInformation procInfo = {
-    .loaded = 0
-};
+struct ProcessInformation procInfo;
 
 int loadSettings(FILE *ptr){
     char c;
@@ -284,37 +294,139 @@ int loadSavedData(FILE *fptr, char line[settings.value.rows][settings.value.line
         ichr++;
     }
 }
+/*
+Delete line form text note
+@param lineNum number of line which you want to delete
+@return pointer on string if exists; else NULL
+*/
 char* delete(char* lineNum){
-    
+    int a = atoi(lineNum);
+    //nacteni notes - radky
+    if (a<1 || a>procInfo.notesLines){
+        printf("Deleting: Invalid number of line.\n");
+        return NULL;
+    }
+    else {
+        char* ptr = ;
+    }
 }
-int write(int argc, char arg[], int i){
 
+/*
+Compares dates in format of this script
+@param date pointer on date which should be written down
+@return integer of position/line for writing down
+*/
+int cmpDates(char* date){
+    //nothing to compare - write it at the end
+    if (date == NULL) return -1;
+
+    int input = strlen(date);
+    for (int i = 0; i<procInfo.datesLen; i++){
+        int cmp = strlen(procInfo.dates[i]);
+
+        //get year - SETUPED FOR 4 CHARACTERS FORMAT
+        int yearForm = 4;
+        char yearDate[5] = {date[input-4], date[input-3], date[input-2], date[input-1], '\0'};
+        char yearCmp[5] = {procInfo.dates[i][cmp-4], procInfo.dates[i][cmp-3], procInfo.dates[i][cmp-2], procInfo.dates[i][cmp-1], '\0'};
+
+        //lower year -> return index to write here
+        //higher year -> compare with another line
+        int tmpD = atoi(yearDate);
+        int tmpC = atoi(yearCmp);
+        if (tmpD < tmpC) return i+1;//indexing from 1
+        else if (tmpD > tmpC) continue;
+
+        //get month
+        //-yyyy -> yearForm+2
+        char monthDate[3] = {date[input-yearForm-3], date[input-yearForm-2], '\0'};
+        char monthCmp[3] = {procInfo.dates[i][cmp-yearForm-3], procInfo.dates[i][cmp-yearForm-2], '\0'};
+        
+        //lower month -> return index to write here
+        //higher month -> compare with another line
+        //atoi("-2")==2 -> doesnt matter if number is of lenght 1
+        int tmpD = atoi(monthDate);
+        int tmpC = atoi(monthCmp);
+        if (tmpD < tmpC) return i+1;//indexing from 1
+        else if (tmpD > tmpC) continue;
+
+        //get day
+        //now from the begining 
+        char dayDate[3] = {date[0], date[0], '\0'};
+        char dayCmp[3] = {procInfo.dates[i][0], procInfo.dates[i][0], '\0'};
+        
+        //lower month -> return index to write here
+        //higher month -> compare with another line
+        //atoi("2-")==2 -> doesnt matter if number is of lenght 1
+        int tmpD = atoi(dayDate);
+        int tmpC = atoi(dayCmp);
+        if (tmpD > tmpC) continue;
+
+        //equal or earlier
+        //latter added date goes on top - algoritmicly faster
+        return i+1;
+    }
+    //later than everything
+    return procInfo.datesLen;
+}
+/*
+Compare text by strcmp()
+@param text pointer on text to compare
+@return index where to put text to by alphabetical
+*/
+int cmpAlph(char * text){
+    for (int i = 0; i<procInfo.datesLen; i++){
+        int cmpOutput = strcmp(text, procInfo.dates[i]);
+        if (cmpOutput >= 0) return i+1;
+    }
+    return -1; //append at the end
 }
 
-void setSort(char sortBy){
-    FILE *fptrnotes;
-    FILE *fptrset;
-    char line[settings.value.rows][settings.value.lineLength];
-    char date[settings.value.rows][10];
+int write(char * text, char * date){
+    //0 = runs successfully
+    int tmp = loadSettings();
+    if (tmp!=0) return tmp;
+    tmp = loadData();
+    if (tmp!=0) return tmp;
 
-    if (fopen("~/notes.txt", "r")!=NULL){
-        fptrnotes = fopen("~/notes.txt", "r");
+    //limit of lines is enabled and reached
+    if (settings.value.limitedRows && procInfo.countLinesNotes==settings.value.rows) 
+        printf("Too many lines in notes.\nFor adding more lines change or disable limit of lines.\n"); return 200;
+
+    //limit of length of line is enabled
+    if (settings.value.limitedLength){
+        //length of prefix X)
+        int prefix = (int)floor(log10(procInfo.countLinesNotes+1))+3;//log(1)==0 -> +1  ; ") " -> +2
+        //only text
+        if (date==NULL){
+            //checking validity of length
+            if (prefix + text >= settings.value.limitedLength)
+                printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n"); return 201;
+        }
+        //text + date
+        else{
+            //checking validity of length
+            if (prefix + strlen(*text) + strlen(*date) +1/*space before date*/>= settings.value.limitedLength)
+                printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n"); return 201;
+        }
+    }
+    //check type of sort
+    int position;
+    switch (settings.value.sort){
+        case 0: position = -1; break;
+        case 1: position = cmpDates(date);
+        case 2: position = cmpAlph(text);
+    }
+
+    //FORMATING OF TEXT
+    //-------------------------------------
+    //append
+    if (position==-1){
+        FILE *fptr = fopen(adrNotes, 'a');
+        fprintf(fptr, //hlidat odsazeni);
     }
     else{
-        fclose(fopen("~/notes.txt", "a"));
-        procInfo.longestLine=0;
-        procInfo.notesLines=0;
-    }
-    if (fopen("~/noteeditset.txt", "r")!=NULL)
-        fptrset = fopen("~/noteeditset.txt", "r");
-    else{
-        settings.value.sort = sortBy;
-        fptrset = fopen("~/noteeditset.txt", "a");//TODO
-    }
-    fclose(fptrnotes);
-}
-int setEdit(int lenght, char line[]){
 
+    }
 }
 
 //noteeditset.txt - saved settings
@@ -332,34 +444,42 @@ rows 50
 */
 
 int main(int argc, char *arg[]){
-    short argArrLen = 7;
-    short argMaxLen = 4;
     char arguments[] = {
         "-h", "-d", "-w",
-        "-e", "-sr", "-st",
+        "-e", "-s", "-o",//options
         "-v"
     };
     if (argc>1){
         for (int i=1; i<argc; i++){//ignore argument with path of script
-            if (arg[i][0]=='-'){
-                for (int j=0; j>argArrLen; j++){
-                    if (strcmp(arg[i], arguments[j])==0)
-                        switch (j){
-                        case 0: helpGuide();break;
-                        case 1: 
-                            if(argc>i+1 && arg[i+1][0]!='-')
-                                if(delete(arg[++i])==NULL) printf("Line %d does not exist\n", arg[i]);
-                            else printf("Missing argument after command %s.\n", arg[i]);
-                            break;
-                        case 2: i+=write(argc, arg, i); break;
-                        case 3: 
-                        case 4:
-                        case 5:
-                        case 6:
-                        }
+            //separate arguments and check its validity
+            char ** input = parse_and_check(argc ,arg);
+            //returns if input is invalid
+            if (input==NULL) return 100;
+            else{
+                switch(input[0][0]){
+                    //help -h
+                    case 0: helpGuide();break;
+                    //version -v
+                    case 1: printf("%s\n",fileInformation.version);break;
+                    //write with one argument -w "arg"
+                    case 2: write(input[1], NULL);break;
+                    //write with two arguments -w "arg" "date"
+                    case 3: write(input[1],input[2]);break;
+                    //delete -d "number"
+                    case 4: delete(input[1]);break;
+                    //edit -e "number"
+                    case 5: edit(input[1]);break;
+                    //sort -s "0/1/2"
+                    case 6: sort(input[1]);break;
+                    //options list -o
+                    case 7: listSettings(NULL);break;
+                    //options list value of -o "option"
+                    case 8: listSettings(input[1]);break;
+                    //change option -o "option" "value"
+                    case 9: changeOption();break;
+                    default: printf("How did you get there? Report thist bug on github: xy\n");
                 }
             }
-            else printf("invalid argument %s (type -h for help)\n", arg[i]);
         }
     }
     else printf("missing arguments (type -h for help)\n");

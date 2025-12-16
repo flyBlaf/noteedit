@@ -100,7 +100,7 @@ struct Settings settings = {
     .value.dateFormat = '0',
     .value.limitedLength = '1',
     .value.limitedRows = '1',
-    .value.lineLength = 60,//allocation for arrays must be set +2 for '\n' and '\0'
+    .value.lineLength = 60,//allocation for arrays must be set +3 for '\n' and '\0' and indexing from 1 (number of line and its index are then equal)
     .value.rows = 50,
     .alias.sort = "sortBy",
     .alias.dateFormat = "dateFormat",
@@ -113,8 +113,8 @@ struct ProcessInformation{
     int countLinesNotes;
     int longestLine;
     int datesLen;
-    char ** text;
-    char ** dates;
+    char ** text;//inserting from index 1
+    char ** dates;//inserting form index 1
 };
 struct ProcessInformation procInfo;
 
@@ -296,23 +296,112 @@ int loadSavedData(FILE *fptr, char line[settings.value.rows][settings.value.line
         ichr++;
     }
 }
+
+typedef struct {
+    char * text;
+    char * date;
+} Line;
+
+/*
+return text and date in one structure
+@param num number of line which you want to get
+@return pointer on structure
+*/
+Line * getLine(int num){
+    static Line line;
+    //allocation of memory for text + '\0'
+    line.text = (char*)malloc((strlen(procInfo.text[num])+1)*sizeof(char));
+    //mark down text (addres)
+    line.text = procInfo.text[num];
+    //uselles to allocate if NULL
+    if (procInfo.dates[num]!=NULL)
+        //allocation of memory for date + '\0'
+        line.date = (char*)malloc((strlen(procInfo.dates[num])+1)*sizeof(char));
+    //mark down date (addres) - NULL also wanted
+    line.date = procInfo.dates[num];
+    return &line;
+}
+
+/*
+overwrite text file by lines in memory
+@param fptr pointer into file moved on place where you want to start writing
+@param lineNum number of line in memory with which begins writting
+*/
+void overwrite(FILE * fptr, int lineNum){
+    for (int i=lineNum; lineNum<procInfo.countLinesNotes; i++){
+        //spaces before number of line
+        //prefixB chybi i v delete - pridat jako argument funkce
+        int paddingStart = prefixB - getRank(i);
+        //padding of date to right
+        int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
+        fprintf(fptr, "% *d) % *s %d\n", paddingStart, i, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+    }
+}
+
 /*
 Delete line form text note
 @param lineNum number of line which you want to delete
 @return pointer on string if exists; else NULL
 */
-char* delete(char* lineNum){
-    int a = atoi(lineNum);
+Line * delete(char* lineNum, short return_bool){
+    int intLine = atoi(lineNum);
     int tmp = loadData();
     if (tmp!=0) return NULL;
 
-    if (a<1 || a>procInfo.countLinesNotes){
+    if (intLine<1 || intLine>procInfo.countLinesNotes){
         printf("Invalid number of line.\n");
         return NULL;
     }
     else {
-        char* ptr = ;
+        //prepsani=smazani
+        FILE * fptr = fopen(adrNotes, "r+");
+        //write line like first - overwrite all
+        if (lineNum!=1){
+            //compared character
+            char a;
+            //index of reading line
+            int reading = 1;
+            fscanf(fptr,"%c", &a);
+            while(reading!=lineNum){
+                fscanf(fptr,"%c", &a);
+                if (a=='\n') reading++;
+            }
+        }
+        //prefixB a problem s odmazanim mezer
+        overwrite(fptr, lineNum+1);
+        fclose(fptr);
+
+        if (return_bool) return getLine(intLine);
+        return NULL;
     }
+}
+
+/*
+Check if writen text+date is in limits by length after adding another line
+@param text is pointer on text which you want to write
+@param date is pointer on date wich you want to write
+@return 0 for no problem, 201 for too long text+date
+*/
+int checkLength(char * text, char * date){
+    //length of prefix X)
+    int prefix = getRank(procInfo.countLinesNotes+1)+2;//") " -> +2
+    //only text
+    if (date==NULL){
+        //checking validity of length
+        if (prefix + text >= settings.value.limitedLength){
+            printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n");
+            return 201;
+        }
+    }
+    //text + date
+    else{
+        //checking validity of length
+        if (prefix + strlen(*text) + strlen(*date) +1/*space before date*/>= settings.value.limitedLength){
+            printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n"); 
+            return 201;
+        }
+    }
+    return 0;
 }
 
 /*
@@ -332,7 +421,7 @@ int cmpDates(char* date){
     if (date == NULL) return -1;
 
     int input = strlen(date);
-    for (int i = 0; i<procInfo.datesLen; i++){
+    for (int i = 1; i<procInfo.datesLen; i++){
         int cmp = strlen(procInfo.dates[i]);
 
         //get year - SETUPED FOR 4 CHARACTERS FORMAT
@@ -344,7 +433,7 @@ int cmpDates(char* date){
         //higher year -> compare with another line
         int tmpD = atoi(yearDate);
         int tmpC = atoi(yearCmp);
-        if (tmpD < tmpC) return i+1;//indexing from 1
+        if (tmpD < tmpC) return i;//indexing from 1
         else if (tmpD > tmpC) continue;
 
         //get month
@@ -357,7 +446,7 @@ int cmpDates(char* date){
         //atoi("-2")==2 -> doesnt matter if number is of lenght 1
         int tmpD = atoi(monthDate);
         int tmpC = atoi(monthCmp);
-        if (tmpD < tmpC) return i+1;//indexing from 1
+        if (tmpD < tmpC) return i;//indexing from 1
         else if (tmpD > tmpC) continue;
 
         //get day
@@ -373,8 +462,8 @@ int cmpDates(char* date){
         if (tmpD > tmpC) continue;
 
         //equal or earlier
-        //latter added date goes on top - algoritmicly faster
-        return i+1;
+        //later added date goes on top - algoritmicly faster
+        return i;
     }
     //later than everything
     return procInfo.datesLen;
@@ -385,9 +474,9 @@ Compare text by strcmp()
 @return index where to put text to by alphabetical
 */
 int cmpAlph(char * text){
-    for (int i = 0; i<procInfo.datesLen; i++){
+    for (int i = 1; i<procInfo.datesLen; i++){
         int cmpOutput = strcmp(text, procInfo.dates[i]);
-        if (cmpOutput >= 0) return i+1;
+        if (cmpOutput >= 0) return i;
     }
     return -1; //append at the end
 }
@@ -411,27 +500,26 @@ int write(char * text, char * date){
 
     //limit of length of line is enabled
     if (settings.value.limitedLength){
-        //length of prefix X)
-        int prefix = getRank(procInfo.countLinesNotes+1)+2;//") " -> +2
-        //only text
-        if (date==NULL){
-            //checking validity of length
-            if (prefix + text >= settings.value.limitedLength)
-                printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n"); return 201;
-        }
-        //text + date
-        else{
-            //checking validity of length
-            if (prefix + strlen(*text) + strlen(*date) +1/*space before date*/>= settings.value.limitedLength)
-                printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n"); return 201;
-        }
+        int tmp = checkLength(text, date);
+        if (tmp!=0) return tmp;
     }
     //check type of sort
     int position;
     switch (settings.value.sort){
         case 0: position = -1; break;
-        case 1: position = cmpDates(date);
-        case 2: position = cmpAlph(text);
+        case 1: position = cmpDates(date); break;
+        case 2: position = cmpAlph(text); break;
+    }
+    //get pointer to file from index of line
+    FILE * fptr = fopen(adrNotes, "r+");
+    if (position!=-1){
+        char a = 'a';
+        int line = 1;
+        while (a!='\n') {
+            fscanf(fptr, "%c", &a);
+            line++;
+            if (position==line) break;
+        }
     }
 
     //FORMATING OF TEXT
@@ -439,47 +527,52 @@ int write(char * text, char * date){
 
     int prefixB = getRank(procInfo.countLinesNotes+1);
     //append
-    if (position==-1){
+    if (position=-1){
         //number prefixis without ") "
         int prefixA = getRank(procInfo.countLinesNotes);
         //length of prefixi has changed by adding line
         if (prefixA!=prefixB){
-            FILE * fptr = fopen(adrNotes, 'w');
-            for (int i = 0; i<procInfo.countLinesNotes; i++){
-                //spaces before number of line
-                int paddingStart = prefixB - getRank(i+1);
-                //padding of date to right
-                int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
-                fprintf(fptr, "% *d) % *s %d\n", paddingStart, i+1, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
-                fclose(fptr);
+            for (int i = 1; i<procInfo.countLinesNotes; i++){
+                //no space for space before line - dont add, print error and continue by another line
+                if (checkLength(procInfo.text[i], procInfo.dates[i])!=0){
+                    pritnf("Unable to add space on line %d.\n");
+                    continue;
+                }
+                //add space before line i
+                fputc(' ', fptr);
+                //read and move pointer to start of another line
+                char a = 'a';
+                while (a!='\n') fscanf(fptr, "%c", &a);
+
+                // //spaces before number of line
+                // int paddingStart = prefixB - getRank(i+1);
+                // //padding of date to right
+                // int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
+                // fprintf(fptr, "% *d) % *s %d\n", paddingStart, i, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+                // fclose(fptr);
             }
         }
-        FILE *fptr = fopen(adrNotes, 'a');
         //padding of date to right
         int padding = settings.value.lineLength - prefixB - strlen((*date))-3;//for spaces and ')'
+        //add writen line at the end
         fprintf(fptr, "%d) % *s %s\n", procInfo.countLinesNotes+1, padding, (*text), (*date));
         fclose(fptr);
     }
     //insert
     else{
-        FILE * fptr = fopen(adrNotes, 'w');
-        int skip = 0;
-        for (int i = 0; i<procInfo.countLinesNotes; i++){
-            //insert new line
-            if (i==position){
-                //numbering of lines must be increased by one
-                skip = 1;
-                //spaces before number of line
-                int paddingStart = prefixB - getRank(i+1);
-                //padding of date to right
-                int paddingDate = settings.value.lineLength - prefixB - strlen((*date))-3;//for spaces and ')'
-                fprintf(fptr, "% *d) % *s %d\n", paddingStart, i+1, paddingDate, (*text), (*date));
-            }
+        //spaces before number of line
+        int paddingStart = prefixB - getRank(position+1);
+        //padding of date to right
+        int paddingDate = settings.value.lineLength - prefixB - strlen((*date))-3;//for spaces and ')'
+        //print new text
+        fprintf(fptr, "% *d) % *s %d\n", paddingStart, position, paddingDate, (*text), (*date));
+        //ovewrite lines after new line
+        for (int i = position; i<procInfo.countLinesNotes;i++){
             //spaces before number of line
-            int paddingStart = prefixB - getRank(i+1+skip);
+            int paddingStart = prefixB - getRank(i);
             //padding of date to right
             int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
-            fprintf(fptr, "% *d) % *s %d\n", paddingStart, i+1+skip, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+            fprintf(fptr, "% *d) % *s %d\n", paddingStart, i, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
         }
         fclose(fptr);
     }
@@ -523,7 +616,7 @@ int main(int argc, char *arg[]){
                     //write with two arguments -w "arg" "date"
                     case 3: write(input[1],input[2]);break;
                     //delete -d "number"
-                    case 4: delete(input[1]);break;
+                    case 4: delete(input[1], 0);break;
                     //edit -e "number"
                     case 5: edit(input[1]);break;
                     //sort -s "0/1/2"

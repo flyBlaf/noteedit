@@ -384,7 +384,7 @@ Check if writen text+date is in limits by length after adding another line
 */
 int checkLength(char * text, char * date){
     //length of prefix X)
-    int prefix = getRank(procInfo.countLinesNotes+1)+2;//") " -> +2
+    int prefix = getRank(procInfo.countLinesNotes+1)+2;//") " -> +2 ======== POZOR PRI VYUZITI V EDIT FUNKCI - POCET RADKU + 1 =========
     //only text
     if (date==NULL){
         //checking validity of length
@@ -405,10 +405,10 @@ int checkLength(char * text, char * date){
 }
 
 /*
-@return length of given number by logarithm+1
+@return length of given number by logarithm
 */
 int getRank(int number){
-    return (int)floor(log10(procInfo.countLinesNotes+1))+1;
+    return (int)floor(log10(number));
 }
 
 /*
@@ -525,6 +525,7 @@ int write(char * text, char * date){
     //FORMATING OF TEXT
     //-------------------------------------
 
+    //length of prefix with one more line
     int prefixB = getRank(procInfo.countLinesNotes+1);
     //append
     if (position=-1){
@@ -539,7 +540,7 @@ int write(char * text, char * date){
                     continue;
                 }
                 //add space before line i
-                fputc(' ', fptr);
+                fputc(' ', fptr);//chybi odebrani pred date
                 //read and move pointer to start of another line
                 char a = 'a';
                 while (a!='\n') fscanf(fptr, "%c", &a);
@@ -555,7 +556,7 @@ int write(char * text, char * date){
         //padding of date to right
         int padding = settings.value.lineLength - prefixB - strlen((*date))-3;//for spaces and ')'
         //add writen line at the end
-        fprintf(fptr, "%d) % *s %s\n", procInfo.countLinesNotes+1, padding, (*text), (*date));
+        fprintf(fptr, "%d) %s % *s\n", procInfo.countLinesNotes+1, (*text), padding, (*date));
         fclose(fptr);
     }
     //insert
@@ -568,11 +569,11 @@ int write(char * text, char * date){
         fprintf(fptr, "% *d) % *s %d\n", paddingStart, position, paddingDate, (*text), (*date));
         //ovewrite lines after new line
         for (int i = position; i<procInfo.countLinesNotes;i++){
-            //spaces before number of line
+            //spaces + length of number
             int paddingStart = prefixB - getRank(i);
             //padding of date to right
             int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
-            fprintf(fptr, "% *d) % *s %d\n", paddingStart, i, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+            fprintf(fptr, "%*d) % *s %d\n", paddingStart, i, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
         }
         fclose(fptr);
     }
@@ -627,7 +628,7 @@ int main(int argc, char *arg[]){
                     case 8: listSettings(input[1]);break;
                     //change option -o "option" "value"
                     case 9: changeOption();break;
-                    default: printf("How did you get there? Report thist bug on github: xy\n");
+                    default: printf("How did you get there? Report thist bug as default argument on github: xy\n");
                 }
             }
         }

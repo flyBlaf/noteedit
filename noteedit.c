@@ -13,12 +13,13 @@
 //TODO list
 //--------------------
 /*
+    zkontrolovat indexovani od 0
+    write predelat na cisty prepis
     loadSettings
     loadData
-    delete
     github
     date formates
-    excec command in conky .conf
+    exec command in conky .conf
     editation of line
 */
 
@@ -113,8 +114,8 @@ struct ProcessInformation{
     int countLinesNotes;
     int longestLine;
     int datesLen;
-    char ** text;//inserting from index 1
-    char ** dates;//inserting form index 1
+    char ** text;
+    char ** dates;
 };
 struct ProcessInformation procInfo;
 
@@ -307,48 +308,60 @@ return text and date in one structure
 @param num number of line which you want to get
 @return pointer on structure
 */
-Line * getLine(int num){
+Line * getLine(int index){
     static Line line;
     //allocation of memory for text + '\0'
-    line.text = (char*)malloc((strlen(procInfo.text[num])+1)*sizeof(char));
+    line.text = (char*)malloc((strlen(procInfo.text[index])+1)*sizeof(char));
     //mark down text (addres)
-    line.text = procInfo.text[num];
+    line.text = procInfo.text[index];
     //uselles to allocate if NULL
-    if (procInfo.dates[num]!=NULL)
+    if (procInfo.dates[index]!=NULL)
         //allocation of memory for date + '\0'
-        line.date = (char*)malloc((strlen(procInfo.dates[num])+1)*sizeof(char));
+        line.date = (char*)malloc((strlen(procInfo.dates[index])+1)*sizeof(char));
     //mark down date (addres) - NULL also wanted
-    line.date = procInfo.dates[num];
+    line.date = procInfo.dates[index];
     return &line;
+}
+
+enum Action{
+    WRITE,EDIT,DEL
+};
+
+void formated_fprintf(FILE * fptr, int total_prefix_len, int line_index){
+    //spaces before number of line
+    int paddingStart = total_prefix_len - getRank(line_index);
+    //padding of date to right
+    int paddingDate = settings.value.lineLength - total_prefix_len - strlen((*procInfo.dates[line_index]))-3;//for spaces and ')'
+    fprintf(fptr, "% *d) % *s %d\n", paddingStart, line_index, paddingDate, (*procInfo.text[line_index]), (*procInfo.dates[line_index]));
 }
 
 /*
 overwrite text file by lines in memory
 @param fptr pointer into file moved on place where you want to start writing
 @param lineNum number of line in memory with which begins writting
+@param action is changing length of prefix depending on use of function - WRITE, DEL, EDIT
 */
-void overwrite(FILE * fptr, int lineNum){
-    for (int i=lineNum; lineNum<procInfo.countLinesNotes; i++){
-        //spaces before number of line
-        //prefixB chybi i v delete - pridat jako argument funkce
-        int paddingStart = prefixB - getRank(i);
-        //padding of date to right
-        int paddingDate = settings.value.lineLength - prefixB - strlen((*procInfo.dates[i]))-3;//for spaces and ')'
-        fprintf(fptr, "% *d) % *s %d\n", paddingStart, i, paddingDate, (*procInfo.text[i]), (*procInfo.dates[i]));
+void overwrite(FILE * fptr, int start_index, int end_index, enum Action act){
+    //countLinesNotes is indexed from 0 -> +1, write -> count - 0 + 1, edit stays same -1 + 1, delete = -1
+    int prefix = getRank(procInfo.countLinesNotes-act+1);
+
+    for (int i=start_index; i<end_index; i++){
+        formated_fprintf(fptr, prefix, i);
     }
 }
 
 /*
 Delete line form text note
 @param lineNum number of line which you want to delete
+@param return_bool if it is not 0 then it gives back pointer on deleted line - for editing
 @return pointer on string if exists; else NULL
 */
 Line * delete(char* lineNum, short return_bool){
-    int intLine = atoi(lineNum);
+    int line_index = atoi(lineNum)-1;
     int tmp = loadData();
     if (tmp!=0) return NULL;
 
-    if (intLine<1 || intLine>procInfo.countLinesNotes){
+    if (line_index<0 || line_index>=procInfo.countLinesNotes){
         printf("Invalid number of line.\n");
         return NULL;
     }
@@ -356,22 +369,14 @@ Line * delete(char* lineNum, short return_bool){
         //prepsani=smazani
         FILE * fptr = fopen(adrNotes, "r+");
         //write line like first - overwrite all
-        if (lineNum!=1){
-            //compared character
-            char a;
-            //index of reading line
-            int reading = 1;
-            fscanf(fptr,"%c", &a);
-            while(reading!=lineNum){
-                fscanf(fptr,"%c", &a);
-                if (a=='\n') reading++;
-            }
+        if (line_index!=0){
+            overwrite(fptr, 0, line_index, EDIT);
         }
-        //prefixB a problem s odmazanim mezer
-        overwrite(fptr, lineNum+1);
+        //+1 skips line which we want to delete
+        overwrite(fptr, line_index+1, procInfo.countLinesNotes, DEL);
         fclose(fptr);
 
-        if (return_bool) return getLine(intLine);
+        if (return_bool) return getLine(line_index);
         return NULL;
     }
 }
@@ -421,7 +426,7 @@ int cmpDates(char* date){
     if (date == NULL) return -1;
 
     int input = strlen(date);
-    for (int i = 1; i<procInfo.datesLen; i++){
+    for (int i = 0; i<procInfo.datesLen; i++){
         int cmp = strlen(procInfo.dates[i]);
 
         //get year - SETUPED FOR 4 CHARACTERS FORMAT
@@ -474,7 +479,7 @@ Compare text by strcmp()
 @return index where to put text to by alphabetical
 */
 int cmpAlph(char * text){
-    for (int i = 1; i<procInfo.datesLen; i++){
+    for (int i = 0; i<procInfo.datesLen; i++){
         int cmpOutput = strcmp(text, procInfo.dates[i]);
         if (cmpOutput >= 0) return i;
     }

@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(){
     printf("%*d) %s %*s\n",3, 12, "Ahoj svete", 15, "11-12-2024");
+    char * str = "";
+    printf("%d", strlen(str));
     // printf("%d", atoi("+24_3_5"));
     // FILE* write = fopen("./test.txt", "w");
     // fprintf(write,"puvodni veta.\n");

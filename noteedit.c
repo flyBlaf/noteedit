@@ -10,7 +10,6 @@
 100 - saved lines in notes are too long to load into memory
 101 - length of dates doesnt match with example
 102 - too much keywords in setting file
-103 - sort get wrong value
 */
 
 //--------------------
@@ -18,12 +17,8 @@
 //--------------------
 /*
     zkontrolovat indexovani od 0
-    funkce parse and check - k moznemu otestovani
-    funkce edit, sort, change_settings
-    github
+    funkce edit, sort
     date formates
-    exec command in conky .conf
-    editation of line
 */
 
 //default settings are overwritten from noteeditset.txt
@@ -34,8 +29,13 @@
 #define stprm 6//number of parameters in settings
 #define nameLength 20//max length of parameters in settings 19+'\0'
 #define valueLenght 8 //max lenght of value of keyword
-#define adrNotes "~/noteeditnt.txt"
-#define adrSet "~/noteeditst.txt"
+/*==============================================================================================================
+                            | 
+                            |   EDIT HERE
+                            V 
+===============================================================================================================*/
+#define adrNotes "home/USERNAME/noteeditnt.txt"
+#define adrSet "home/USERNAME/noteeditst.txt"
 
 struct FileInformation{
     char version[10];
@@ -91,7 +91,7 @@ struct Settings settings = {
     .value.rows = 50,
     .alias.sort = "sort_by",
     .alias.dateFormat = "date_format",
-    .alias.limitedLength = "Length_limitation",
+    .alias.limitedLength = "length_limitation",
     .alias.limitedRows = "row_limitation",
     .alias.lineLength = "line_length",
     .alias.rows = "rows"
@@ -120,8 +120,8 @@ void helpGuide(){
     printf("   Version: %s\n", fileInformation.version);
     printf("   Written in %s\n", fileInformation.year);
     for (int i=0; i<30; i++){printf("-");}
-    printf("\n\nThis program formating text to text file for right visualization by conky.\nTo .conf write {TODO-formating by conky}\nText is separate to two columns 1.subject 2.Date and default sort is by this date.\nLines without date are in the order of writing");
-    printf("\n\n   %-21s %s\n", "-h", "print (this) help guied");
+    printf("\n\nThis program is formating lines of text into text file.\nText is divided into two columns - 1.subject 2.Date and by default it is sort by date.\nLines without date are in the order of writing");
+    printf("\n\n   %-21s %s\n", "-h", "print (this) help guide");
     printf("   %-21s %s\n", "-v", "print version");
     printf("   %-21s %s\n", "-w [text] [date]", "write new line to file with optional parameter [date] in format dd-mm-yyyy, which writes date to second column");
     printf("   %-21s %s\n", "-d [number]", "delete line [number]");
@@ -144,17 +144,22 @@ int errorQuestion(){
 }
 
 void listSettings(char * alias){
-    if (strcmp(alias, settings.alias.lineLength)==0)            printf("   %d %-21s - maximal number of characters on single line.", settings.value.lineLength, settings.alias.lineLength);
-    else if (strcmp(alias, settings.alias.rows)==0)             printf("   %d %-21s - maximal number of rows.", settings.value.rows, settings.alias.rows);
-    else if (strcmp(alias, settings.alias.dateFormat)==0)       printf("   %d %-21s - actual used date format.", settings.value.dateFormat, settings.alias.dateFormat);
-    else if (strcmp(alias, settings.alias.limitedLength)==0)    printf("   %d %-21s - number of characters is limited 0=False/1=True.", settings.value.limitedLength, settings.alias.limitedLength);
-    else if (strcmp(alias, settings.alias.limitedRows)==0)      printf("   %d %-21s - number of rows is limited 0=False/1=True.", settings.value.limitedRows, settings.alias.limitedRows);
+    if (alias == NULL) goto end;
+
+    if (strcmp(alias, settings.alias.lineLength)==0)            printf("   %d %-21s - maximal number of characters on single line.\n", settings.value.lineLength, settings.alias.lineLength);
+    else if (strcmp(alias, settings.alias.rows)==0)             printf("   %d %-21s - maximal number of rows.\n", settings.value.rows, settings.alias.rows);
+    else if (strcmp(alias, settings.alias.dateFormat)==0)       printf("   %d %-21s - actual used date format.\n", settings.value.dateFormat, settings.alias.dateFormat);
+    else if (strcmp(alias, settings.alias.limitedLength)==0)    printf("   %d %-21s - number of characters is limited 0=False/1=True.\n", settings.value.limitedLength, settings.alias.limitedLength);
+    else if (strcmp(alias, settings.alias.limitedRows)==0)      printf("   %d %-21s - number of rows is limited 0=False/1=True.\n", settings.value.limitedRows, settings.alias.limitedRows);
+    else if (strcmp(alias, settings.alias.sort)==0)             printf("   %d %-21s - chose of sorting parameter 0 - none/in order of writing, 1 - by date, 2 - by alphabet\n", settings.value.sort, settings.alias.sort);
     else{
-        printf("   %d %-21s - maximal number of characters on single line.", settings.value.lineLength, settings.alias.lineLength);
-        printf("   %d %-21s - maximal number of rows.", settings.value.rows, settings.alias.rows);
-        printf("   %d %-21s - actual used date format.", settings.value.dateFormat, settings.alias.dateFormat);
-        printf("   %d %-21s - number of characters is limited 0=False/1=True.", settings.value.limitedLength, settings.alias.limitedLength);
-        printf("   %d %-21s - number of rows is limited 0=False/1=True.", settings.value.limitedRows, settings.alias.limitedRows);
+        end:
+        printf("   %d %-21s - maximal number of characters on single line.\n", settings.value.lineLength, settings.alias.lineLength);
+        printf("   %d %-21s - maximal number of rows.\n", settings.value.rows, settings.alias.rows);
+        printf("   %d %-21s - actual used date format.\n", settings.value.dateFormat, settings.alias.dateFormat);
+        printf("   %d %-21s - number of characters is limited 0=False/1=True.\n", settings.value.limitedLength, settings.alias.limitedLength);
+        printf("   %d %-21s - number of rows is limited 0=False/1=True.\n", settings.value.limitedRows, settings.alias.limitedRows);
+        printf("   %d %-21s - chose of sorting parameter 0 - none/in order of writing, 1 - by date, 2 - by alphabet\n", settings.value.sort, settings.alias.sort);
     }
 }
 
@@ -443,6 +448,8 @@ void write_settings(){
     fprintf(fptr, "%s %d\n",settings.alias.dateFormat, settings.value.dateFormat);
     fprintf(fptr, "%s %d\n",settings.alias.lineLength, settings.value.lineLength);
     fprintf(fptr, "%s %d\n",settings.alias.rows, settings.value.rows);
+    fprintf(fptr, "%s %d\n",settings.alias.limitedLength, settings.value.limitedLength);
+    fprintf(fptr, "%s %d\n",settings.alias.limitedRows, settings.value.limitedRows);
     fclose(fptr);
 }
 
@@ -589,14 +596,8 @@ int Edit(char * lineNum){
     return 0;
 }
 
-int Sort(char * type){
-    int intType = atoi(type);
-    if (intType == 0 && type[0] != '0'){
-        printf("Unexpected value.\nFor sort are only options 0/1/2.\n");
-        return 103;
-    }
-
-    switch (intType){
+int Sort(){
+    switch (settings.value.sort){
         case NONE:
         case DATE:
         case ALPHA:
@@ -611,8 +612,11 @@ int Options(char * option, char * value){
     if (tmp!=0) return tmp;
 
     short warning = 0;
-    int intValue = atoi(value);
-    if (intValue == 0 && value[0]!='0') intValue = -1;
+    int intValue;
+    if (value!=NULL){
+        intValue = atoi(value);
+        if (intValue == 0 && value[0]!='0') intValue = -1;
+    }
 
     if (option == NULL) listSettings(NULL);
     else if (value == NULL) listSettings(option);
@@ -646,12 +650,14 @@ int Options(char * option, char * value){
     }
     //type of sort
     else if (strcmp(option, settings.alias.sort)==0){
-        if (intValue>=0 && intValue<=2) {settings.value.sort = intValue; sort();}
+        if (intValue>=0 && intValue<=2) {settings.value.sort = intValue; Sort();}
         else warning = 1;
     }
     else printf("Option %s does not exist in settings.\n", option);
 
     if (warning == 1) printf("Unexpected value.\nType \"-o\" for list settings or \"-h\" for help.\n");
+
+    write_settings();
 
     return 0;
 }
@@ -676,27 +682,25 @@ rows 50
 int main(int argc, char *arg[]){
     int rtn_value = 0;
     if (argc>1){
-        for (int i=1; i<argc; i++){//ignore argument with path of script
-            if (arg[1][0] == '-')
-                switch(arg[1][1]){
-                    //help -h
-                    case 'h': helpGuide();break;
-                    //version -v
-                    case 'v': printf("%s\n",fileInformation.version);break;
-                    //write with one argument -w "arg" "date"
-                    case 'w': rtn_value = write(arg[2], (argc>3) ? arg[3] : NULL);break;
-                    //delete -d "number"
-                    case 'd': delete(arg[2]);break;
-                    //edit -e "number"
-                    case 'e': rtn_value = Edit(arg[2]);break;
-                    //sort -s "0/1/2"
-                    case 's': rtn_value = (arg[2]);break;
-                    //options list -o "option" "value"
-                    case 'o': rtn_value = Options((argc>2)? arg[2]:NULL, (argc>3)? arg[3]:NULL);break;
-                    default: printf("Invalid arguments (type -h for help).\n");
-                }
-            else printf("Invalid arguments (type -h for help).\n");
-        }
+        if (arg[1][0] == '-')
+            switch(arg[1][1]){
+                //help -h
+                case 'h': helpGuide();break;
+                //version -v
+                case 'v': printf("version %s\n",fileInformation.version);break;
+                //write with one argument -w "arg" "date"
+                case 'w': rtn_value = write(arg[2], (argc>3) ? arg[3] : NULL);break;
+                //delete -d "number"
+                case 'd': delete(arg[2]);break;
+                //edit -e "number"
+                case 'e': rtn_value = Edit(arg[2]);break;
+                //sort -s "0/1/2"
+                case 's': rtn_value = Sort(arg[2]);break;
+                //options list -o "option" "value"
+                case 'o': rtn_value = Options((argc>2)? arg[2]:NULL, (argc>3)? arg[3]:NULL);break;
+                default: printf("Invalid arguments (type -h for help).\n");
+            }
+        else printf("Invalid arguments (type -h for help).\n");
     }
     else printf("Missing arguments (type -h for help).\n");
 

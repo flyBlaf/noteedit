@@ -456,6 +456,25 @@ int load_data(){
     FILE * fptr = fopen(adrNotes, "r");
     if (fptr == NULL) return 0;
 
+    //allocation of memory for text and dates
+    char ** tmp = (char**)malloc(settings.value.rows * sizeof(char*));
+    if (tmp==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+
+    for (int i = 0; i < settings.value.rows; i++){
+        tmp[i] = (char*)malloc((settings.value.lineLength+1) * sizeof(char));
+        if (tmp[i]==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+    }
+    procInfo.text = tmp;
+
+    char ** tmp = (char**)malloc(settings.value.rows * sizeof(char*));
+    if (tmp==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+
+    for (int i = 0; i < settings.value.rows; i++){
+        tmp[i] = (char*)malloc(strlne(date_formates[settings.value.dateFormat]+1) * sizeof(char));
+        if (tmp[i]==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+    }
+    procInfo.dates = tmp;
+
     char chr;
     short space = 0;
     int ichr = 0;
@@ -712,6 +731,14 @@ int main(int argc, char *arg[]){
         else printf("Invalid arguments (type -h for help).\n");
     }
     else printf("Missing arguments (type -h for help).\n");
+
+    //free memory
+    for (int i = 0; i < settings.value.rows; i++){
+        free(procInfo.text[i]);
+        free(procInfo.dates[i]);
+    }
+    free(procInfo.text);
+    free(procInfo.dates);
 
     return rtn_value;
 }

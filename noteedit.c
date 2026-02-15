@@ -466,11 +466,11 @@ int load_data(){
     }
     procInfo.text = tmp;
 
-    char ** tmp = (char**)malloc(settings.value.rows * sizeof(char*));
+    tmp = (char**)malloc(settings.value.rows * sizeof(char*));
     if (tmp==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
 
     for (int i = 0; i < settings.value.rows; i++){
-        tmp[i] = (char*)malloc(strlne(date_formates[settings.value.dateFormat]+1) * sizeof(char));
+        tmp[i] = (char*)malloc(strlen(date_formates[settings.value.dateFormat]+1) * sizeof(char));
         if (tmp[i]==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
     }
     procInfo.dates = tmp;

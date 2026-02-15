@@ -19,6 +19,7 @@
     zkontrolovat indexovani od 0
     funkce edit, sort
     date formates
+    limitace znaku a radku
 */
 
 //default settings are overwritten from noteeditset.txt
@@ -29,13 +30,11 @@
 #define stprm 6//number of parameters in settings
 #define nameLength 20//max length of parameters in settings 19+'\0'
 #define valueLenght 8 //max lenght of value of keyword
-/*==============================================================================================================
-                            | 
-                            |   EDIT HERE
-                            V 
-===============================================================================================================*/
-#define adrNotes "home/USERNAME/noteeditnt.txt"
-#define adrSet "home/USERNAME/noteeditst.txt"
+
+ char adrNotes[256];
+ char adrSet[256];
+ char *name_notes = "/noteedit_notes.txt";
+ char *name_settings = "/noteedit_set.txt";
 
 struct FileInformation{
     char version[10];
@@ -680,6 +679,16 @@ rows 50
 */
 
 int main(int argc, char *arg[]){
+    //find directory
+    //adrNotes = malloc(strlen(getenv("HOME") + strlen(name_notes) + 1)); // to account for NULL terminator
+    strcpy(adrNotes, getenv("HOME"));
+    strcat(adrNotes, name_notes);
+    //adrSet = malloc(strlen(getenv("HOME") + strlen(name_settings) + 1)); // to account for NULL terminator
+    strcpy(adrSet, getenv("HOME"));
+    strcat(adrSet, name_settings);
+
+    printf("problem je u me");
+
     int rtn_value = 0;
     if (argc>1){
         if (arg[1][0] == '-')

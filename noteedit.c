@@ -10,6 +10,9 @@
 100 - saved lines in notes are too long to load into memory
 101 - length of dates doesnt match with example
 102 - too much keywords in setting file
+103 - limit of rows is reached
+104 - too long line
+200 - malloc returns NULL
 */
 
 //--------------------
@@ -31,10 +34,12 @@
 #define nameLength 20//max length of parameters in settings 19+'\0'
 #define valueLenght 8 //max lenght of value of keyword
 
- char adrNotes[256];
- char adrSet[256];
- char *name_notes = "/noteedit_notes.txt";
- char *name_settings = "/noteedit_set.txt";
+char adrNotes[256];
+char adrSet[256];
+char *name_notes = "/noteedit_notes.txt";
+char *name_settings = "/noteedit_set.txt";
+int allocations = -1;
+short allocBoth = 1;
 
 struct FileInformation{
     char version[10];
@@ -98,7 +103,6 @@ struct Settings settings = {
 
 struct ProcessInformation{
     int countLinesNotes;
-    int datesLen;
     char ** text;
     char ** dates;
 };
@@ -165,10 +169,10 @@ void listSettings(char * alias){
 //=================================== Informative Functions =================================================
 
 /*
-@return length of given number by logarithm
+@return length of given number + 1 by logarithm
 */
 int getRank(int number){
-    return (int)floor(log10(number));
+    return (int)floor(log10(number+1))+1;
 }
 
 typedef struct {
@@ -183,15 +187,7 @@ return text and date in one structure
 */
 Line * getLine(int index){
     static Line line;
-    //allocation of memory for text + '\0'
-    line.text = (char*)malloc((strlen(procInfo.text[index])+1)*sizeof(char));
-    //mark down text (addres)
     line.text = procInfo.text[index];
-    //uselles to allocate if NULL
-    if (procInfo.dates[index]!=NULL)
-        //allocation of memory for date + '\0'
-        line.date = (char*)malloc((strlen(procInfo.dates[index])+1)*sizeof(char));
-    //mark down date (addres) - NULL also wanted
     line.date = procInfo.dates[index];
     return &line;
 }
@@ -208,17 +204,17 @@ int checkLength(char * text, char * date){
     //only text
     if (date==NULL){
         //checking validity of length
-        if (prefix + strlen(text) >= settings.value.limitedLength){
+        if (prefix + strlen(text) >= settings.value.lineLength){
             printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n");
-            return 201;
+            return 104;
         }
     }
     //text + date
     else{
         //checking validity of length
-        if (prefix + strlen(text) + strlen(date) +1/*space before date*/>= settings.value.limitedLength){
+        if (prefix + strlen(text) + strlen(date) +1/*space before date*/>= settings.value.lineLength){
             printf("Too long note.\nFor adding longer notes change or disable limit of lenght.\n"); 
-            return 201;
+            return 104;
         }
     }
     return 0;
@@ -231,9 +227,13 @@ enum Action{
 void formated_fprintf(FILE * fptr, int total_prefix_len, int line_index){
     //spaces before number of line
     int paddingStart = total_prefix_len - getRank(line_index);
-    //padding of date to right
-    int paddingDate = settings.value.lineLength - total_prefix_len - strlen(procInfo.dates[line_index])-3;//for spaces and ')'
-    fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, line_index, procInfo.text[line_index], paddingDate, '|', procInfo.dates[line_index]);
+    //with and without date
+    if (procInfo.dates[line_index]==NULL) fprintf(fptr, "%*d) %s\n", paddingStart, line_index, procInfo.text[line_index]);
+    else{
+        //padding of date to right
+        int paddingDate = settings.value.lineLength - total_prefix_len - strlen(procInfo.dates[line_index])-3;//for spaces and ')'
+        fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, line_index, procInfo.text[line_index], paddingDate, '|', procInfo.dates[line_index]);
+    }
 }
 
 /*
@@ -254,7 +254,7 @@ void overwrite(FILE * fptr, int start_index, int end_index, enum Action act){
 /*
 Compares dates in format of this script
 @param date pointer on date which should be written down
-@return integer of position/line for writing down
+@return index of where to write down new text; -1 as last one
 */
 int cmpDates(char* date){
     //nothing to compare - write it at the end
@@ -262,9 +262,9 @@ int cmpDates(char* date){
 
     int input = strlen(date);
     for (int i = 0; i<procInfo.countLinesNotes; i++){
-        int cmp = strlen(procInfo.dates[i]);
         //doesnt have a date
-        if (cmp==0) return i;
+        if (procInfo.dates[i]==NULL) return i;
+        int cmp = strlen(procInfo.dates[i]);
 
         //get year - SETUPED FOR 4 CHARACTERS FORMAT
         int yearForm = 4;
@@ -293,8 +293,8 @@ int cmpDates(char* date){
 
         //get day
         //now from the begining 
-        char dayDate[3] = {date[0], date[0], '\0'};
-        char dayCmp[3] = {procInfo.dates[i][0], procInfo.dates[i][0], '\0'};
+        char dayDate[3] = {date[0], date[1], '\0'};
+        char dayCmp[3] = {procInfo.dates[i][0], procInfo.dates[i][1], '\0'};
         
         //lower month -> return index to write here
         //higher month -> compare with another line
@@ -319,7 +319,7 @@ Compare text by strcmp()
 int cmpAlph(char * text){
     for (int i = 0; i<procInfo.countLinesNotes; i++){
         int cmpOutput = strcmp(text, procInfo.text[i]);
-        if (cmpOutput >= 0) return i;
+        if (cmpOutput < 0) return i;
     }
     return -1; //append at the end
 }
@@ -340,8 +340,8 @@ int load_settings(){
     char str_value[valueLenght];
     int load_part = 0;//0-keyword, 1-value
     int invalidChracter = 0;
-    int index_word;
-    int ic;
+    int index_word=0;
+    int ic=0;
     while(fscanf(fptr, "%c", &c)!=EOF){
         if (c==' '&&ic==0) continue;
 
@@ -365,7 +365,7 @@ int load_settings(){
             }
             else if (c=='\n'){//missing value
                 keyword[index_word][ic] = '\0';
-                printf("Missing value after keyword %s.\nIt will be replaced by default value.\n", keyword[index_word]);
+                printf("Missing value after keyword %s.\nIt will be replaced by default value.\n", keyword[index_word++]);
 
                 ic = 0;
             }
@@ -373,15 +373,15 @@ int load_settings(){
 
         }else{
             if (ic==valueLenght-1) {//space for '\0'
-                printf("Too high value after keyword %s.\nCheck %s or increase nameLength(=%d) otherwise it will be replaced by default value.\n", keyword[index_word], adrSet, valueLenght-1);
+                printf("Too high value after keyword %s.\nCheck %s or increase nameLength(=%d) otherwise it will be replaced by default value.\n", keyword[index_word++], adrSet, valueLenght-1);
 
                 int status = 0;
-                while(status==EOF || c=='\n') //discard line
+                while(status!=EOF || c!='\n') //discard line
                     status = fscanf(fptr, "%c", &c);
                 continue;
             }
             else if (c=='\n' && ic == 0){
-                printf("Missing value after keyword %s.\nIt will be replaced by default value.\n", keyword[index_word]);
+                printf("Missing value after keyword %s.\nIt will be replaced by default value.\n", keyword[index_word++]);
 
                 load_part = 0;
                 ic = 0;
@@ -396,7 +396,7 @@ int load_settings(){
     }
     fclose(fptr);
 
-    for (int i = 0; i < stprm; i++){
+    for (int i = 0; i < index_word; i++){
         short warning = 0;
         //date format
         if (strcmp(keyword[i], settings.alias.dateFormat)==0){
@@ -457,23 +457,23 @@ int load_data(){
     if (fptr == NULL) return 0;
 
     //allocation of memory for text and dates
-    char ** tmp = (char**)malloc(settings.value.rows * sizeof(char*));
-    if (tmp==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+    allocations = -1; //for freeing in case of return
+    allocBoth = 1;
+    char ** tmpText = (char**)malloc(settings.value.rows * sizeof(char*));
+    if (tmpText==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+    char ** tmpDate = (char**)malloc(settings.value.rows * sizeof(char*));
+    if (tmpDate==NULL) {printf("Allocation failed. Not enough memory.\n"); allocBoth=0; return 200;}
+    allocations++;
 
-    for (int i = 0; i < settings.value.rows; i++){
-        tmp[i] = (char*)malloc((settings.value.lineLength+1) * sizeof(char));
-        if (tmp[i]==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+    for (; allocations < settings.value.rows; allocations++){
+        tmpText[allocations] = (char*)malloc((settings.value.lineLength+1) * sizeof(char));
+        if (tmpText[allocations]==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
+        tmpDate[allocations] = (char*)malloc((strlen(date_formates[settings.value.dateFormat])+1) * sizeof(char));
+        if (tmpDate[allocations]==NULL) {printf("Allocation failed. Not enough memory.\n"); allocBoth=0; return 200;}
     }
-    procInfo.text = tmp;
-
-    tmp = (char**)malloc(settings.value.rows * sizeof(char*));
-    if (tmp==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
-
-    for (int i = 0; i < settings.value.rows; i++){
-        tmp[i] = (char*)malloc(strlen(date_formates[settings.value.dateFormat]+1) * sizeof(char));
-        if (tmp[i]==NULL) {printf("Allocation failed. Not enough memory.\n"); return 200;}
-    }
-    procInfo.dates = tmp;
+    allocations--;//to be same as in return cases
+    procInfo.text = tmpText;
+    procInfo.dates = tmpDate;
 
     char chr;
     short space = 0;
@@ -486,8 +486,11 @@ int load_data(){
             case 0: 
                 if (chr == ' ') part = 1; break;
             case 1:
-                if (chr == '|') 
-                    {procInfo.text[index_line][ichr] = '\0'; part = 2;}
+                if (chr == '|') {
+                    procInfo.text[index_line][ichr] = '\0'; 
+                    ichr = 0;
+                    part = 2;
+                }
                 else if (chr == '\n'){
                     part = 0;
                     procInfo.text[index_line][ichr] = '\0';
@@ -509,7 +512,9 @@ int load_data(){
             case 2:
                 if (chr!='\n') procInfo.dates[index_line][ichr++] = chr;
                 else {
-                    if (strlen(procInfo.dates[index_line]) != procInfo.datesLen) {printf("Unexpected date format on line %d in %s.\nCan not be loaded into memory. %s or text file was manualy modified.", index_line+1, adrNotes, settings.alias.lineLength); return 101;}
+                    procInfo.dates[index_line][ichr] = '\0';
+
+                    if (strlen(procInfo.dates[index_line]) != strlen(date_formates[settings.value.dateFormat])) {printf("Unexpected date format on line %d in %s.\nCan not be loaded into memory. %s or text file was manualy modified.\n", index_line+1, adrNotes, settings.alias.lineLength); return 101;}
 
                     ichr=0; 
                     index_line++; 
@@ -518,7 +523,10 @@ int load_data(){
                 break;
         }
     }
+    procInfo.countLinesNotes = index_line;
     fclose(fptr);
+
+    return 0;
 }
 
 //==================================== work with memory =====================================
@@ -537,8 +545,9 @@ int write(char * text, char * date){
     if (tmp!=0) return tmp;
 
     //limit of lines is enabled and reached
-    if (settings.value.limitedRows && procInfo.countLinesNotes==settings.value.rows) 
-        printf("Too many lines in notes.\nFor adding more lines change or disable limit of lines.\n"); return 200;
+    if (settings.value.limitedRows && procInfo.countLinesNotes==settings.value.rows) {
+        printf("Too many lines in notes.\nFor adding more lines change or disable limit of lines.\n"); return 103;
+    }
 
     //limit of length of line is enabled
     if (settings.value.limitedLength){
@@ -552,29 +561,35 @@ int write(char * text, char * date){
         case 1: position = cmpDates(date); break;
         case 2: position = cmpAlph(text); break;
     }
-    //get pointer to file from index of line
-    FILE * fptr = fopen(adrNotes, "r+");
+
+    FILE * fptr = fopen(adrNotes, "w");
 
     if (position!=-1){
         overwrite(fptr, 0, position, WRITE);
 
-        int total_prefix_len = getRank(procInfo.countLinesNotes);
+        int total_prefix_len = getRank(procInfo.countLinesNotes+1);
         //spaces before number of line
         int paddingStart = total_prefix_len - getRank(position);
-        //padding of date to right
-        int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
-        fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, position, text, paddingDate, '|', date);
+
+        //with and without date
+        if (date == NULL) fprintf(fptr, "%*d) %s\n", paddingStart, position, text);
+        else{
+            //padding of date to right
+            int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
+            fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, position, text, paddingDate, '|', date);
+        }
 
         overwrite(fptr, position, procInfo.countLinesNotes,WRITE);
     }else{
         overwrite(fptr, 0, procInfo.countLinesNotes, WRITE);
-
-        int total_prefix_len = getRank(procInfo.countLinesNotes);
-        //spaces before number of line
-        int paddingStart = total_prefix_len - getRank(position);
-        //padding of date to right
-        int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
-        fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, position, text, paddingDate, '|', date);
+        int total_prefix_len = getRank(procInfo.countLinesNotes+1);
+        //with and without date
+        if (date == NULL) fprintf(fptr, "%d) %s\n", procInfo.countLinesNotes+1, text);
+        else{
+            //padding of date to right
+            int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
+            fprintf(fptr, "%d) %s%*c%s\n", procInfo.countLinesNotes+1, text, paddingDate, '|', date);
+        }
     }
     fclose(fptr);
     return 0;
@@ -597,7 +612,7 @@ Line * delete(char* lineNum){
     }
     else {
         //prepsani=smazani
-        FILE * fptr = fopen(adrNotes, "r+");
+        FILE * fptr = fopen(adrNotes, "w");
         //write line like first - overwrite all
         if (line_index!=0){
             overwrite(fptr, 0, line_index, DEL);
@@ -642,7 +657,7 @@ int Options(char * option, char * value){
     //change settings
     //date format
     else if (strcmp(option, settings.alias.dateFormat)==0){
-        if (value>0 && intValue<(sizeof(date_formates)/sizeof(date_formates[0]))){
+        if (intValue>0 && intValue<(sizeof(date_formates)/sizeof(date_formates[0]))){
             settings.value.dateFormat = intValue; change_date_format();
         }else warning = 1;
         }
@@ -706,8 +721,6 @@ int main(int argc, char *arg[]){
     strcpy(adrSet, getenv("HOME"));
     strcat(adrSet, name_settings);
 
-    printf("problem je u me");
-
     int rtn_value = 0;
     if (argc>1){
         if (arg[1][0] == '-')
@@ -733,12 +746,16 @@ int main(int argc, char *arg[]){
     else printf("Missing arguments (type -h for help).\n");
 
     //free memory
-    for (int i = 0; i < settings.value.rows; i++){
-        free(procInfo.text[i]);
-        free(procInfo.dates[i]);
+    if (procInfo.text!=NULL){
+        for (int i = 0; i <= allocations; i++){
+            free(procInfo.text[i]);
+            if (allocBoth)
+                free(procInfo.dates[i]);
+        }
+        free(procInfo.text);
+        if (allocBoth && allocations==-1)
+            free(procInfo.dates);
     }
-    free(procInfo.text);
-    free(procInfo.dates);
 
     return rtn_value;
 }

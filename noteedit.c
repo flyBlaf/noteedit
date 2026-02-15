@@ -143,6 +143,21 @@ int errorQuestion(){
     return 0;
 }
 
+void listSettings(char * alias){
+    if (strcmp(alias, settings.alias.lineLength)==0)            printf("   %d %-21s - maximal number of characters on single line.", settings.value.lineLength, settings.alias.lineLength);
+    else if (strcmp(alias, settings.alias.rows)==0)             printf("   %d %-21s - maximal number of rows.", settings.value.rows, settings.alias.rows);
+    else if (strcmp(alias, settings.alias.dateFormat)==0)       printf("   %d %-21s - actual used date format.", settings.value.dateFormat, settings.alias.dateFormat);
+    else if (strcmp(alias, settings.alias.limitedLength)==0)    printf("   %d %-21s - number of characters is limited 0=False/1=True.", settings.value.limitedLength, settings.alias.limitedLength);
+    else if (strcmp(alias, settings.alias.limitedRows)==0)      printf("   %d %-21s - number of rows is limited 0=False/1=True.", settings.value.limitedRows, settings.alias.limitedRows);
+    else{
+        printf("   %d %-21s - maximal number of characters on single line.", settings.value.lineLength, settings.alias.lineLength);
+        printf("   %d %-21s - maximal number of rows.", settings.value.rows, settings.alias.rows);
+        printf("   %d %-21s - actual used date format.", settings.value.dateFormat, settings.alias.dateFormat);
+        printf("   %d %-21s - number of characters is limited 0=False/1=True.", settings.value.limitedLength, settings.alias.limitedLength);
+        printf("   %d %-21s - number of rows is limited 0=False/1=True.", settings.value.limitedRows, settings.alias.limitedRows);
+    }
+}
+
 //=================================== Informative Functions =================================================
 
 /*
@@ -305,10 +320,8 @@ int cmpAlph(char * text){
     return -1; //append at the end
 }
 
-char ** parse_and_check(int argc, char * arg[]){
-    static char * input[3];
-
-    return input;
+int change_date_format(){
+    return 0;
 }
 
 //===================================== simplifing functions ==========================================
@@ -548,7 +561,7 @@ Delete line form text note
 @param return_bool if it is not 0 then it gives back pointer on deleted line - for editing
 @return pointer on string if exists; else NULL
 */
-Line * delete(char* lineNum, short return_bool){
+Line * delete(char* lineNum){
     int line_index = atoi(lineNum)-1;
     int tmp = load_data();
     if (tmp!=0) return NULL;
@@ -568,8 +581,7 @@ Line * delete(char* lineNum, short return_bool){
         overwrite(fptr, line_index+1, procInfo.countLinesNotes, DEL);
         fclose(fptr);
 
-        if (return_bool) return getLine(line_index);
-        return NULL;
+        return getLine(line_index);
     }
 }
 
@@ -594,11 +606,53 @@ int Sort(char * type){
     return 0;
 }
 
-int listSettings(char * option){
-    return 0;
-}
+int Options(char * option, char * value){
+    int tmp = load_settings();
+    if (tmp!=0) return tmp;
 
-int changeOption(char * option, char * value){
+    short warning = 0;
+    int intValue = atoi(value);
+    if (intValue == 0 && value[0]!='0') intValue = -1;
+
+    if (option == NULL) listSettings(NULL);
+    else if (value == NULL) listSettings(option);
+
+    //change settings
+    //date format
+    else if (strcmp(option, settings.alias.dateFormat)==0){
+        if (value>0 && intValue<(sizeof(date_formates)/sizeof(date_formates[0]))){
+            settings.value.dateFormat = intValue; change_date_format();
+        }else warning = 1;
+        }
+    //limit of length (true/false)
+    else if (strcmp(option, settings.alias.limitedLength)==0){
+        if (intValue==0 || intValue==1) settings.value.limitedLength = intValue;
+        else warning = 1;
+    }
+    //limit of rows (true/false)
+    else if (strcmp(option, settings.alias.limitedRows)==0){
+        if (intValue==0 || intValue==1) settings.value.limitedRows = intValue;
+        else warning = 1;
+    }
+    //max length of line
+    else if (strcmp(option, settings.alias.lineLength)==0){
+        if (intValue>0) settings.value.lineLength = intValue;
+        else warning = 1;
+    }
+    //max number of rows        
+    else if (strcmp(option, settings.alias.rows)==0){
+        if (intValue>0) settings.value.rows = intValue;
+        else warning = 1;
+    }
+    //type of sort
+    else if (strcmp(option, settings.alias.sort)==0){
+        if (intValue>=0 && intValue<=2) {settings.value.sort = intValue; sort();}
+        else warning = 1;
+    }
+    else printf("Option %s does not exist in settings.\n", option);
+
+    if (warning == 1) printf("Unexpected value.\nType \"-o\" for list settings or \"-h\" for help.\n");
+
     return 0;
 }
 
@@ -620,45 +674,31 @@ rows 50
 */
 
 int main(int argc, char *arg[]){
-    char * arguments[] = {
-        "-h", "-d", "-w",
-        "-e", "-s", "-o",//options
-        "-v"
-    };
+    int rtn_value = 0;
     if (argc>1){
         for (int i=1; i<argc; i++){//ignore argument with path of script
-            //separate arguments and check its validity
-            char ** input = parse_and_check(argc ,arg);
-            //returns if input is invalid
-            if (input==NULL) return 100;
-            else{
-                switch(input[0][0]){
+            if (arg[1][0] == '-')
+                switch(arg[1][1]){
                     //help -h
-                    case 0: helpGuide();break;
+                    case 'h': helpGuide();break;
                     //version -v
-                    case 1: printf("%s\n",fileInformation.version);break;
-                    //write with one argument -w "arg"
-                    case 2: write(input[1], NULL);break;
-                    //write with two arguments -w "arg" "date"
-                    case 3: write(input[1],input[2]);break;
+                    case 'v': printf("%s\n",fileInformation.version);break;
+                    //write with one argument -w "arg" "date"
+                    case 'w': rtn_value = write(arg[2], (argc>3) ? arg[3] : NULL);break;
                     //delete -d "number"
-                    case 4: delete(input[1], 0);break;
+                    case 'd': delete(arg[2]);break;
                     //edit -e "number"
-                    case 5: Edit(input[1]);break;
+                    case 'e': rtn_value = Edit(arg[2]);break;
                     //sort -s "0/1/2"
-                    case 6: Sort(input[1]);break;
-                    //options list -o
-                    case 7: listSettings(NULL);break;
-                    //options list value of -o "option"
-                    case 8: listSettings(input[1]);break;
-                    //change option -o "option" "value"
-                    case 9: changeOption(input[1],input[2]);break;
-                    default: printf("How did you get there? Report thist bug as default argument on github: xy\n");
+                    case 's': rtn_value = (arg[2]);break;
+                    //options list -o "option" "value"
+                    case 'o': rtn_value = Options((argc>2)? arg[2]:NULL, (argc>3)? arg[3]:NULL);break;
+                    default: printf("Invalid arguments (type -h for help).\n");
                 }
-            }
+            else printf("Invalid arguments (type -h for help).\n");
         }
     }
-    else printf("missing arguments (type -h for help)\n");
+    else printf("Missing arguments (type -h for help).\n");
 
-    return 0;
+    return rtn_value;
 }

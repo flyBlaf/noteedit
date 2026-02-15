@@ -4,6 +4,10 @@
 
 int main(){
     printf("%*d) %s%*c%s\n",3, 12, "Ahoj svete", 15, '|',"11-12-2024");
+    short a;
+    int b = 3;
+    a = b;
+    printf("%d\n", a);
     //printf("% *d) % *s|%s\n", 3, 12, "Ahoj svete", 15, "11-03-2001");
     //printf("% *d) % *s|%s\n", paddingStart, line_index, paddingDate, procInfo.text[line_index], procInfo.dates[line_index]);
     //char * str = "";

@@ -20,6 +20,7 @@
 //--------------------
 /*
     zkontrolovat indexovani od 0
+    odsazovani ve funkcich overwrite a write
     funkce edit, sort
     date formates
     limitace znaku a radku
@@ -137,7 +138,7 @@ void helpGuide(){
 int errorQuestion(){
     printf("Some data can be lost. Do you want to continue? [Y/n]");
     char c;
-    scanf("%c\n",&c);
+    scanf(" %c\n",&c);
     if (c=='Y') return 0;
     else{
         printf("Proccess canceled...\n");
@@ -400,7 +401,7 @@ int load_settings(){
         short warning = 0;
         //date format
         if (strcmp(keyword[i], settings.alias.dateFormat)==0){
-            if (value[i]>0 && value[i]<(sizeof(date_formates)/sizeof(date_formates[0])))
+            if (value[i]>=0 && value[i]<(sizeof(date_formates)/sizeof(date_formates[0])))
                 settings.value.dateFormat = value[i];
             else warning = 1;
         }
@@ -657,7 +658,7 @@ int Options(char * option, char * value){
     //change settings
     //date format
     else if (strcmp(option, settings.alias.dateFormat)==0){
-        if (intValue>0 && intValue<(sizeof(date_formates)/sizeof(date_formates[0]))){
+        if (intValue>=0 && intValue<(sizeof(date_formates)/sizeof(date_formates[0]))){
             settings.value.dateFormat = intValue; change_date_format();
         }else warning = 1;
         }
@@ -735,8 +736,6 @@ int main(int argc, char *arg[]){
                 case 'd': delete(arg[2]);break;
                 //edit -e "number"
                 case 'e': rtn_value = Edit(arg[2]);break;
-                //sort -s "0/1/2"
-                case 's': rtn_value = Sort(arg[2]);break;
                 //options list -o "option" "value"
                 case 'o': rtn_value = Options((argc>2)? arg[2]:NULL, (argc>3)? arg[3]:NULL);break;
                 default: printf("Invalid arguments (type -h for help).\n");

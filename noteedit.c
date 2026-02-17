@@ -224,15 +224,13 @@ enum Action{
     WRITE,EDIT,DEL
 };
 
-void formated_fprintf(FILE * fptr, int total_prefix_len, int line_index, int number){
-    //spaces before number of line
-    int paddingStart = total_prefix_len - getRank(line_index);
+void formated_fprintf(FILE * fptr, int paddingStart, int line_index, int number){
     //with and without date
     if (procInfo.dates[line_index]==NULL) fprintf(fptr, "%*d) %s\n", paddingStart, number, procInfo.text[line_index]);
     else{
         //padding of date to right
-        int paddingDate = settings.value.lineLength - total_prefix_len - strlen(procInfo.dates[line_index])-3;//for spaces and ')'
-        fprintf(fptr, "%*d) %-*s|%s\n", paddingStart, number, paddingDate, procInfo.text[line_index], procInfo.dates[line_index]);
+        int paddingDate = settings.value.lineLength - paddingStart - strlen(procInfo.dates[line_index])-3;//for spaces and ')'
+        fprintf(fptr, "%*d) %-*s|%s\n", paddingStart, number+1, paddingDate, procInfo.text[line_index], procInfo.dates[line_index]);
     }
 }
 
@@ -485,7 +483,9 @@ int load_data(){
         if (ichr == settings.value.lineLength) {printf("Too long text on line %d in %s.\nCan not be loaded into memory. %s or text file was modified.", index_line+1, adrNotes, settings.alias.lineLength); return 100;}
         switch (part){
             case 0: 
-                if (chr == ')') {part = 1; fscanf(fptr, "%c", &chr);} break;//read space and ignore - does not checking case -w ""
+                if (chr == ')') {part = 1; fscanf(fptr, "%c", &chr);}//read space and ignore - does not checking case -w ""
+                space = 0;
+                break;
             case 1:
                 if (chr == '|') {
                     procInfo.text[index_line][ichr] = '\0'; 
@@ -565,33 +565,30 @@ int write(char * text, char * date){
 
     FILE * fptr = fopen(adrNotes, "w");
 
+    int paddingStart = getRank(procInfo.countLinesNotes+1);
+
     if (position!=-1){
         overwrite(fptr, 0, position, WRITE, 0);
 
         //increase from index
         int number = position+1;
 
-        int total_prefix_len = getRank(procInfo.countLinesNotes+1);
-        //spaces before number of line
-        int paddingStart = total_prefix_len - getRank(position);
-
         //with and without date
         if (date == NULL) fprintf(fptr, "%*d) %s\n", paddingStart, number, text);
         else{
             //padding of date to right
-            int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
+            int paddingDate = settings.value.lineLength - paddingStart - strlen(date)-3;//for spaces and ')'
             fprintf(fptr, "%*d) %-*s|%s\n", paddingStart, number, paddingDate, text, date);
         }
 
         overwrite(fptr, position, procInfo.countLinesNotes,WRITE, 1);
     }else{
         overwrite(fptr, 0, procInfo.countLinesNotes, WRITE, 0);
-        int total_prefix_len = getRank(procInfo.countLinesNotes+1);
         //with and without date
         if (date == NULL) fprintf(fptr, "%d) %s\n", procInfo.countLinesNotes+1, text);
         else{
             //padding of date to right
-            int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
+            int paddingDate = settings.value.lineLength - paddingStart - strlen(date)-3;//for spaces and ')'
             fprintf(fptr, "%d) %-*s|%s\n", procInfo.countLinesNotes+1, paddingDate, text, date);
         }
     }

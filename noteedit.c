@@ -224,8 +224,7 @@ enum Action{
     WRITE,EDIT,DEL
 };
 
-void formated_fprintf(FILE * fptr, int total_prefix_len, int line_index){
-    int number = line_index+1;
+void formated_fprintf(FILE * fptr, int total_prefix_len, int line_index, int number){
     //spaces before number of line
     int paddingStart = total_prefix_len - getRank(line_index);
     //with and without date
@@ -242,13 +241,14 @@ overwrite text file by lines in memory
 @param fptr pointer into file moved on place where you want to start writing
 @param lineNum number of line in memory with which begins writting
 @param action is changing length of prefix depending on use of function - WRITE, DEL, EDIT
+@param addition is awful way how to change printed number on start of line when it is not corespondent with index+1
 */
-void overwrite(FILE * fptr, int start_index, int end_index, enum Action act){
+void overwrite(FILE * fptr, int start_index, int end_index, enum Action act, int additon){
     //countLinesNotes is indexed from 0 -> +1, write -> count - 0 + 1, edit stays same -1 + 1, delete = -1
-    int prefix = getRank(procInfo.countLinesNotes-act+1);
+    int prefix = getRank(procInfo.countLinesNotes-act+1+additon);
 
     for (int i=start_index; i<end_index; i++){
-        formated_fprintf(fptr, prefix, i);
+        formated_fprintf(fptr, prefix, i, i+additon);
     }
 }
 
@@ -566,7 +566,7 @@ int write(char * text, char * date){
     FILE * fptr = fopen(adrNotes, "w");
 
     if (position!=-1){
-        overwrite(fptr, 0, position, WRITE);
+        overwrite(fptr, 0, position, WRITE, 0);
 
         //increase from index
         int number = position+1;
@@ -583,9 +583,9 @@ int write(char * text, char * date){
             fprintf(fptr, "%*d) %-*s|%s\n", paddingStart, number, paddingDate, text, date);
         }
 
-        overwrite(fptr, position, procInfo.countLinesNotes,WRITE);
+        overwrite(fptr, position, procInfo.countLinesNotes,WRITE, 1);
     }else{
-        overwrite(fptr, 0, procInfo.countLinesNotes, WRITE);
+        overwrite(fptr, 0, procInfo.countLinesNotes, WRITE, 0);
         int total_prefix_len = getRank(procInfo.countLinesNotes+1);
         //with and without date
         if (date == NULL) fprintf(fptr, "%d) %s\n", procInfo.countLinesNotes+1, text);
@@ -619,10 +619,10 @@ Line * delete(char* lineNum){
         FILE * fptr = fopen(adrNotes, "w");
         //write line like first - overwrite all
         if (line_index!=0){
-            overwrite(fptr, 0, line_index, DEL);
+            overwrite(fptr, 0, line_index, DEL, 0);
         }
         //+1 skips line which we want to delete
-        overwrite(fptr, line_index+1, procInfo.countLinesNotes, DEL);
+        overwrite(fptr, line_index+1, procInfo.countLinesNotes, DEL, -1);
         fclose(fptr);
 
         return getLine(line_index);

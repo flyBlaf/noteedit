@@ -130,7 +130,6 @@ void helpGuide(){
     printf("   %-21s %s\n", "-w [text] [date]", "write new line to file with optional parameter [date] in format dd-mm-yyyy, which writes date to second column");
     printf("   %-21s %s\n", "-d [number]", "delete line [number]");
     printf("   %-21s %s\n", "-e [number]", "TODO"/*"print editable text from line [number] and save it edited back on line"*/);
-    printf("   %-21s %s\n", "-s [number]", "sort lines 0 - in the order of writing, 1 - by date in second column, 2 - alphabetical");
     printf("   %-21s %s\n\n", "-o [option] [value]", "0 arguments - list options of noteedit, 1 argmunet - list value of option, 2 arguments - overwrite value of option.");
     printf("For changes and new versions (if a new version ever comes) look for TODO-github.\n");
 }
@@ -226,14 +225,15 @@ enum Action{
 };
 
 void formated_fprintf(FILE * fptr, int total_prefix_len, int line_index){
+    int number = line_index+1;
     //spaces before number of line
     int paddingStart = total_prefix_len - getRank(line_index);
     //with and without date
-    if (procInfo.dates[line_index]==NULL) fprintf(fptr, "%*d) %s\n", paddingStart, line_index, procInfo.text[line_index]);
+    if (procInfo.dates[line_index]==NULL) fprintf(fptr, "%*d) %s\n", paddingStart, number, procInfo.text[line_index]);
     else{
         //padding of date to right
         int paddingDate = settings.value.lineLength - total_prefix_len - strlen(procInfo.dates[line_index])-3;//for spaces and ')'
-        fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, line_index, procInfo.text[line_index], paddingDate, '|', procInfo.dates[line_index]);
+        fprintf(fptr, "%*d) %-*s|%s\n", paddingStart, number, paddingDate, procInfo.text[line_index], procInfo.dates[line_index]);
     }
 }
 
@@ -485,7 +485,7 @@ int load_data(){
         if (ichr == settings.value.lineLength) {printf("Too long text on line %d in %s.\nCan not be loaded into memory. %s or text file was modified.", index_line+1, adrNotes, settings.alias.lineLength); return 100;}
         switch (part){
             case 0: 
-                if (chr == ' ') part = 1; break;
+                if (chr == ')') {part = 1; fscanf(fptr, "%c", &chr);} break;//read space and ignore - does not checking case -w ""
             case 1:
                 if (chr == '|') {
                     procInfo.text[index_line][ichr] = '\0'; 
@@ -568,16 +568,19 @@ int write(char * text, char * date){
     if (position!=-1){
         overwrite(fptr, 0, position, WRITE);
 
+        //increase from index
+        int number = position+1;
+
         int total_prefix_len = getRank(procInfo.countLinesNotes+1);
         //spaces before number of line
         int paddingStart = total_prefix_len - getRank(position);
 
         //with and without date
-        if (date == NULL) fprintf(fptr, "%*d) %s\n", paddingStart, position, text);
+        if (date == NULL) fprintf(fptr, "%*d) %s\n", paddingStart, number, text);
         else{
             //padding of date to right
             int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
-            fprintf(fptr, "%*d) %s%*c%s\n", paddingStart, position, text, paddingDate, '|', date);
+            fprintf(fptr, "%*d) %-*s|%s\n", paddingStart, number, paddingDate, text, date);
         }
 
         overwrite(fptr, position, procInfo.countLinesNotes,WRITE);
@@ -589,7 +592,7 @@ int write(char * text, char * date){
         else{
             //padding of date to right
             int paddingDate = settings.value.lineLength - total_prefix_len - strlen(date)-3;//for spaces and ')'
-            fprintf(fptr, "%d) %s%*c%s\n", procInfo.countLinesNotes+1, text, paddingDate, '|', date);
+            fprintf(fptr, "%d) %-*s|%s\n", procInfo.countLinesNotes+1, paddingDate, text, date);
         }
     }
     fclose(fptr);

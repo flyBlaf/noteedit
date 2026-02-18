@@ -226,7 +226,7 @@ enum Action{
 
 void formated_fprintf(FILE * fptr, int paddingStart, int line_index, int number){
     //with and without date
-    if (procInfo.dates[line_index]==NULL) fprintf(fptr, "%*d) %s\n", paddingStart, number, procInfo.text[line_index]);
+    if ((procInfo.dates[line_index]==NULL)? 0 : strlen(procInfo.dates[line_index])==0) fprintf(fptr, "%*d) %s\n", paddingStart, number+1, procInfo.text[line_index]);
     else{
         //padding of date to right
         int paddingDate = settings.value.lineLength - paddingStart - strlen(procInfo.dates[line_index])-3;//for spaces and ')'
@@ -262,7 +262,7 @@ int cmpDates(char* date){
     int input = strlen(date);
     for (int i = 0; i<procInfo.countLinesNotes; i++){
         //doesnt have a date
-        if (procInfo.dates[i]==NULL) return i;
+        if ((procInfo.dates[i]==NULL)? 0 : strlen(procInfo.dates[i])==0) return i;
         int cmp = strlen(procInfo.dates[i]);
 
         //get year - SETUPED FOR 4 CHARACTERS FORMAT

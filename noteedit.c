@@ -243,7 +243,7 @@ overwrite text file by lines in memory
 */
 void overwrite(FILE * fptr, int start_index, int end_index, enum Action act, int additon){
     //countLinesNotes is indexed from 0 -> +1, write -> count - 0 + 1, edit stays same -1 + 1, delete = -1
-    int prefix = getRank(procInfo.countLinesNotes-act+1+additon);
+    int prefix = getRank(procInfo.countLinesNotes-act+1);
 
     for (int i=start_index; i<end_index; i++){
         formated_fprintf(fptr, prefix, i, i+additon);

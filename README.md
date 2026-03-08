@@ -13,4 +13,4 @@ It has few settings options
 - sort method - date, alphabet, none
 - date format (very basic)
 
-If you will editing the script I hope you will not suffer too much from my english.
+If you edit anything from project I hope you will not suffer too much from my english.
